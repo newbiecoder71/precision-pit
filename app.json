@@ -4,10 +4,8 @@
     "slug": "precision-pit",
     "scheme": "precisionpit",
     "orientation": "default",
-    "icon": "./assets/logo/app-icon.png",
+    "icon": "./assets/logo/app-icon1-lowered.png",
     "splash": {
-      "image": "./assets/logo/app-icon.png",
-      "resizeMode": "contain",
       "backgroundColor": "#0D1117"
     },
     "platforms": [
@@ -16,22 +14,22 @@
       "web"
     ],
     "ios": {
+      "bundleIdentifier": "com.newbiecoder71.precisionpit",
       "supportsTablet": true,
       "splash": {
-        "tabletImage": "./assets/logo/app-icon.png",
-        "backgroundColor": "#0D1117",
-        "resizeMode": "contain"
+        "backgroundColor": "#0D1117"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo/app-icon-adaptive.png",
+        "foregroundImage": "./assets/logo/app-icon1-lowered.png",
         "backgroundColor": "#0D1117"
       },
       "splash": {
-        "mdpi": "./assets/logo/app-icon.png",
-        "backgroundColor": "#0D1117",
-        "resizeMode": "contain"
+        "backgroundColor": "#0D1117"
       },
       "package": "com.newbiecoder71.precisionpit"
     },

@@ -4,6 +4,7 @@ import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
 import DatePickerModal from "../components/DatePickerModal";
 import { dirtOvalTracks } from "../data/dirtOvalTracks";
+import { usesDirtOvalTrackLibrary } from "../data/racing";
 import { useAppStore } from "../store/useAppStore";
 import { colors, spacing } from "../theme";
 import { formatStoredDateValue, getDateSortValue, parseStoredDate } from "../utils/date";
@@ -12,6 +13,7 @@ export default function EventsScreen({ navigation, route }: any) {
   const raceEvents = useAppStore((state) => state.raceEvents);
   const raceNights = useAppStore((state) => state.raceNights);
   const racingType = useAppStore((state) => state.racingType);
+  const teamId = useAppStore((state) => state.teamId);
   const createRaceEvent = useAppStore((state) => state.createRaceEvent);
   const deleteRaceEvent = useAppStore((state) => state.deleteRaceEvent);
   const startRaceNight = useAppStore((state) => state.startRaceNight);
@@ -65,8 +67,10 @@ export default function EventsScreen({ navigation, route }: any) {
     return [...usageMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   }, [raceEvents, raceNights]);
 
+  const hasRaceHistory = raceEvents.length > 0 || raceNights.length > 0;
+
   const availableTracks = useMemo(() => {
-    if (racingType !== "Dirt Oval") {
+    if (!usesDirtOvalTrackLibrary(racingType)) {
       return [];
     }
 
@@ -74,10 +78,26 @@ export default function EventsScreen({ navigation, route }: any) {
   }, [racingType]);
 
   useEffect(() => {
+    setTitle("");
+    setTrackName("");
+    setEventDate("");
+    setShowTrackMenu(false);
+  }, [teamId]);
+
+  useEffect(() => {
+    if (!showAddEvent) {
+      return;
+    }
+
+    if (!hasRaceHistory) {
+      setTrackName("");
+      return;
+    }
+
     if (!trackName.trim() && popularTrack) {
       setTrackName(popularTrack);
     }
-  }, [popularTrack, trackName]);
+  }, [hasRaceHistory, popularTrack, showAddEvent, trackName]);
 
   useEffect(() => {
     if (route.params?.showAddEvent) {
@@ -171,21 +191,57 @@ export default function EventsScreen({ navigation, route }: any) {
   };
 
   const handleOpenEvent = async (eventId: string, titleText: string, trackText: string, dateValue: string) => {
-    try {
-      const latestRaceNightId = getRaceNightsForEvent(eventId, titleText, trackText, dateValue)[0]?.id;
-      const raceNightId =
-        getActiveRaceNightIdForEvent(eventId) ?? latestRaceNightId ?? (await startRaceNight(eventId));
-      const parentNavigation = navigation.getParent?.();
-      if (parentNavigation?.push) {
-        parentNavigation.push("RaceNight", { raceNightId });
-        return;
-      }
+    const openSelectedEvent = async (options?: {
+      allowWithOtherActive?: boolean;
+      completeOtherActive?: boolean;
+    }) => {
+      try {
+        const latestRaceNightId = getRaceNightsForEvent(eventId, titleText, trackText, dateValue)[0]?.id;
+        const raceNightId =
+          getActiveRaceNightIdForEvent(eventId) ??
+          latestRaceNightId ??
+          (await startRaceNight(eventId, options));
+        const parentNavigation = navigation.getParent?.();
+        if (parentNavigation?.push) {
+          parentNavigation.push("RaceNight", { raceNightId });
+          return;
+        }
 
-      parentNavigation?.navigate("RaceNight", { raceNightId });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to open the event.";
-      Alert.alert("Open failed", message);
+        parentNavigation?.navigate("RaceNight", { raceNightId });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to open the event.";
+        Alert.alert("Unable to open race", message);
+      }
+    };
+
+    const otherActiveRaceNight = raceNights.find(
+      (raceNight) => raceNight.eventId !== eventId && raceNight.status === "active",
+    );
+
+    if (otherActiveRaceNight && !getActiveRaceNightIdForEvent(eventId)) {
+      Alert.alert(
+        "Previous race still active",
+        `Do you want to mark the ${formatStoredDateValue(otherActiveRaceNight.eventDate)} race completed first before starting this race?`,
+        [
+          {
+            text: "No",
+            onPress: () => {
+              void openSelectedEvent({ allowWithOtherActive: true });
+            },
+          },
+          {
+            text: "Yes",
+            onPress: () => {
+              void openSelectedEvent({ completeOtherActive: true });
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+      return;
     }
+
+    await openSelectedEvent();
   };
 
   const renderEventRow = (
@@ -331,7 +387,7 @@ export default function EventsScreen({ navigation, route }: any) {
               ]}
             >
               <Text style={trackName ? styles.fieldValue : styles.fieldPlaceholder}>
-                {trackName || (availableTracks.length > 0 ? "Select track" : "Track dropdown is for Dirt Oval")}
+                {trackName || "Select track"}
               </Text>
               <Text style={styles.fieldIcon}>{showTrackMenu ? "^" : "v"}</Text>
             </Pressable>

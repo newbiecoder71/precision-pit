@@ -40,15 +40,20 @@ export default function PastRacesScreen({ navigation }: any) {
 
   const pastRaceNights = useMemo(
     () =>
-      [...raceNights].sort((a, b) => {
-        const dateSort = getDateSortValue(b.eventDate) - getDateSortValue(a.eventDate);
-        if (dateSort !== 0) {
-          return dateSort;
-        }
+      [...raceNights]
+        .filter((night) => {
+          const eventTime = parseStoredDate(night.eventDate).setHours(0, 0, 0, 0);
+          return eventTime < today || night.status === "completed" || night.status === "rainout";
+        })
+        .sort((a, b) => {
+          const dateSort = getDateSortValue(b.eventDate) - getDateSortValue(a.eventDate);
+          if (dateSort !== 0) {
+            return dateSort;
+          }
 
-        return b.createdAt.localeCompare(a.createdAt);
-      }),
-    [raceNights],
+          return b.createdAt.localeCompare(a.createdAt);
+        }),
+    [raceNights, today],
   );
 
   useFocusEffect(
@@ -73,14 +78,17 @@ export default function PastRacesScreen({ navigation }: any) {
           pastRaceNights.map((night) => {
             const eventTime = parseStoredDate(night.eventDate).setHours(0, 0, 0, 0);
             const isPastDate = eventTime < today;
+            const hasRainoutMarker = night.status === "rainout" || Boolean(night.rainoutStage);
+            const isRainout = night.status !== "completed" && hasRainoutMarker;
             const hasRecordedResult =
               Boolean(night.featureFinishPosition.trim()) ||
               Boolean(night.heatFinishPosition.trim()) ||
               Boolean(night.featureStartPosition.trim());
             const isEffectivelyCompleted =
-              night.status === "completed" || (night.status === "active" && isPastDate && hasRecordedResult);
+              !isRainout &&
+              (night.status === "completed" || (night.status === "active" && isPastDate && hasRecordedResult));
             const topStatusLabel =
-              night.status === "rainout"
+              isRainout
                 ? "Rainout"
                 : isEffectivelyCompleted
                   ? "Completed"
@@ -88,7 +96,9 @@ export default function PastRacesScreen({ navigation }: any) {
                     ? "Saved"
                     : "Active";
             const finishLabel =
-              night.status === "rainout"
+              night.status === "completed" && hasRainoutMarker
+                ? "Rainout"
+                : isRainout
                 ? "Finished: Rainout"
                 : night.featureFinishPosition.trim()
                   ? `Finished: ${formatOrdinalPosition(night.featureFinishPosition) || night.featureFinishPosition}`
@@ -106,7 +116,18 @@ export default function PastRacesScreen({ navigation }: any) {
                   <Text style={styles.meta}>{formatStoredDateValue(night.eventDate)}</Text>
                 </View>
                 <View style={styles.statusColumn}>
-                  {!isEffectivelyCompleted && night.status !== "rainout" ? (
+                  {isEffectivelyCompleted && !isRainout ? (
+                    <Pressable
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        navigation.push("RaceNightPrint", { raceNightId: night.id });
+                      }}
+                      style={styles.printButton}
+                    >
+                      <Text style={styles.printButtonText}>PRINT</Text>
+                    </Pressable>
+                  ) : null}
+                  {!isEffectivelyCompleted ? (
                     <Pressable
                       onPress={(event) => {
                         event.stopPropagation();
@@ -235,6 +256,19 @@ const styles = StyleSheet.create({
   },
   completeButtonText: {
     color: "#F6FFF8",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  printButton: {
+    alignItems: "center",
+    backgroundColor: "#1780D4",
+    borderRadius: 999,
+    minWidth: 104,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  printButtonText: {
+    color: "#F3FAFF",
     fontSize: 12,
     fontWeight: "800",
   },

@@ -46,7 +46,11 @@ export default function ResetPasswordScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 96 : 24}
         >
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardDismissMode="none"
+            keyboardShouldPersistTaps="always"
+          >
             <Text style={styles.title}>Reset password</Text>
             <Text style={styles.body}>
               Choose a new password for your account. Use at least 8 characters with

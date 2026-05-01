@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Alert,
   Image,
+  Keyboard,
   Modal,
   Pressable,
   StyleSheet,
@@ -14,13 +15,17 @@ import KeyboardScreen from "../components/KeyboardScreen";
 import { colors, spacing } from "../theme";
 import { TireSetup, useAppStore } from "../store/useAppStore";
 import {
+  normalizeFractionMeasurementInput,
+  sanitizeFractionMeasurementInput,
+} from "../utils/measurementInputs";
+import {
   calculateStaggerValue,
   formatMeasurementValue,
   type TireMeasurementDisplayMode,
 } from "../utils/tireMeasurements";
 
 const tirePositionOptions = ["LF", "RF", "LR", "RR", "Spare"] as const;
-const circumferenceWholeNumberOptions = Array.from({ length: 13 }, (_, index) => `${84 + index}`);
+const circumferenceWholeNumberOptions = Array.from({ length: 18 }, (_, index) => `${79 + index}`);
 const circumferenceFractionOptions = ["0", "1/8", "1/4", "3/8", "1/2", "5/8", "3/4", "7/8"] as const;
 const TIRE_MEASUREMENT_DISPLAY_KEY = "tireMeasurementDisplay";
 
@@ -34,27 +39,39 @@ function TireCornerField({
   label,
   circumference,
   pressure,
+  wheelOffset,
   onPressCircumference,
   onChangePressure,
+  onChangeWheelOffset,
+  onBlurWheelOffset,
 }: {
   label: string;
   circumference: string;
   pressure: string;
+  wheelOffset: string;
   onPressCircumference: () => void;
   onChangePressure: (value: string) => void;
+  onChangeWheelOffset: (value: string) => void;
+  onBlurWheelOffset: () => void;
 }) {
   return (
     <View style={styles.cornerCard}>
-      <Text style={styles.cornerTitle}>{label}</Text>
+      <Pressable onPress={Keyboard.dismiss}>
+        <Text style={styles.cornerTitle}>{label}</Text>
+      </Pressable>
 
-      <Text style={styles.label}>Circumference</Text>
+      <Pressable onPress={Keyboard.dismiss}>
+        <Text style={styles.label}>Circumference</Text>
+      </Pressable>
       <Pressable onPress={onPressCircumference} style={[styles.input, styles.circumferenceButton]}>
         <Text style={circumference ? styles.inputValue : styles.inputPlaceholder}>
           {circumference || "Select"}
         </Text>
       </Pressable>
 
-      <Text style={styles.label}>Pressure</Text>
+      <Pressable onPress={Keyboard.dismiss}>
+        <Text style={styles.label}>Pressure</Text>
+      </Pressable>
       <TextInput
         style={[styles.input, styles.inputCompact]}
         placeholder=""
@@ -62,6 +79,19 @@ function TireCornerField({
         value={pressure}
         onChangeText={(value) => onChangePressure(sanitizeNumberInput(value))}
         keyboardType="decimal-pad"
+      />
+
+      <Pressable onPress={Keyboard.dismiss}>
+        <Text style={styles.label}>Wheel Offset</Text>
+      </Pressable>
+      <TextInput
+        style={[styles.input, styles.inputCompact]}
+        placeholder=""
+        placeholderTextColor="#4F7390"
+        value={wheelOffset}
+        onChangeText={(value) => onChangeWheelOffset(sanitizeFractionMeasurementInput(value))}
+        onBlur={onBlurWheelOffset}
+        keyboardType="numbers-and-punctuation"
       />
     </View>
   );
@@ -151,6 +181,13 @@ export default function TiresScreen() {
     setDraftSetup((current) => ({
       ...current,
       [field]: value,
+    }));
+  };
+
+  const handleWheelOffsetBlur = (field: keyof TireSetup) => {
+    setDraftSetup((current) => ({
+      ...current,
+      [field]: normalizeFractionMeasurementInput(current[field]),
     }));
   };
 
@@ -261,47 +298,62 @@ export default function TiresScreen() {
 
         {expandedSections.tireSettings ? (
           <>
-            <View style={styles.settingsInlineRow}>
-              <Text style={styles.settingsInlineText}>
-                Stagger display: {displayMode === "fraction" ? "Fractions" : "Decimals"}
-              </Text>
-              <Pressable onPress={() => setShowDisplaySettings(true)} style={styles.settingsLinkButton}>
-                <Text style={styles.settingsLinkButtonText}>Change</Text>
-              </Pressable>
-            </View>
+            <Pressable onPress={Keyboard.dismiss}>
+              <View style={styles.settingsInlineRow}>
+                <Text style={styles.settingsInlineText}>
+                  Stagger display: {displayMode === "fraction" ? "Fractions" : "Decimals"}
+                </Text>
+                <Pressable onPress={() => setShowDisplaySettings(true)} style={styles.settingsLinkButton}>
+                  <Text style={styles.settingsLinkButtonText}>Change</Text>
+                </Pressable>
+              </View>
+            </Pressable>
 
             <View style={styles.cornerGrid}>
               <TireCornerField
                 label="LF"
                 circumference={draftSetup.lfCircumference}
-                pressure={draftSetup.lfPressure}
-                onPressCircumference={() => handleOpenCircumferencePicker("lfCircumference")}
-                onChangePressure={(value) => handleSetupChange("lfPressure", value)}
-              />
-              <TireCornerField
-                label="RF"
-                circumference={draftSetup.rfCircumference}
-                pressure={draftSetup.rfPressure}
-                onPressCircumference={() => handleOpenCircumferencePicker("rfCircumference")}
-                onChangePressure={(value) => handleSetupChange("rfPressure", value)}
-              />
-              <TireCornerField
-                label="LR"
-                circumference={draftSetup.lrCircumference}
-                pressure={draftSetup.lrPressure}
-                onPressCircumference={() => handleOpenCircumferencePicker("lrCircumference")}
-                onChangePressure={(value) => handleSetupChange("lrPressure", value)}
-              />
-              <TireCornerField
-                label="RR"
-                circumference={draftSetup.rrCircumference}
-                pressure={draftSetup.rrPressure}
-                onPressCircumference={() => handleOpenCircumferencePicker("rrCircumference")}
-                onChangePressure={(value) => handleSetupChange("rrPressure", value)}
-              />
+              pressure={draftSetup.lfPressure}
+              wheelOffset={draftSetup.lfWheelOffset}
+              onPressCircumference={() => handleOpenCircumferencePicker("lfCircumference")}
+              onChangePressure={(value) => handleSetupChange("lfPressure", value)}
+              onChangeWheelOffset={(value) => handleSetupChange("lfWheelOffset", value)}
+              onBlurWheelOffset={() => handleWheelOffsetBlur("lfWheelOffset")}
+            />
+            <TireCornerField
+              label="RF"
+              circumference={draftSetup.rfCircumference}
+              pressure={draftSetup.rfPressure}
+              wheelOffset={draftSetup.rfWheelOffset}
+              onPressCircumference={() => handleOpenCircumferencePicker("rfCircumference")}
+              onChangePressure={(value) => handleSetupChange("rfPressure", value)}
+              onChangeWheelOffset={(value) => handleSetupChange("rfWheelOffset", value)}
+              onBlurWheelOffset={() => handleWheelOffsetBlur("rfWheelOffset")}
+            />
+            <TireCornerField
+              label="LR"
+              circumference={draftSetup.lrCircumference}
+              pressure={draftSetup.lrPressure}
+              wheelOffset={draftSetup.lrWheelOffset}
+              onPressCircumference={() => handleOpenCircumferencePicker("lrCircumference")}
+              onChangePressure={(value) => handleSetupChange("lrPressure", value)}
+              onChangeWheelOffset={(value) => handleSetupChange("lrWheelOffset", value)}
+              onBlurWheelOffset={() => handleWheelOffsetBlur("lrWheelOffset")}
+            />
+            <TireCornerField
+              label="RR"
+              circumference={draftSetup.rrCircumference}
+              pressure={draftSetup.rrPressure}
+              wheelOffset={draftSetup.rrWheelOffset}
+              onPressCircumference={() => handleOpenCircumferencePicker("rrCircumference")}
+              onChangePressure={(value) => handleSetupChange("rrPressure", value)}
+              onChangeWheelOffset={(value) => handleSetupChange("rrWheelOffset", value)}
+              onBlurWheelOffset={() => handleWheelOffsetBlur("rrWheelOffset")}
+            />
             </View>
 
-            <View style={styles.staggerRow}>
+            <Pressable onPress={Keyboard.dismiss}>
+              <View style={styles.staggerRow}>
               <View style={styles.staggerCard}>
                 <Text style={styles.staggerLabel}>Front Stagger</Text>
                 <Text style={styles.staggerValue}>{frontStagger}</Text>
@@ -316,7 +368,8 @@ export default function TiresScreen() {
                   RR minus LR | {displayMode === "fraction" ? "Fractions" : "Decimals"}
                 </Text>
               </View>
-            </View>
+              </View>
+            </Pressable>
 
             <Pressable onPress={handleSaveSetup} style={styles.button}>
               <Text style={styles.buttonText}>Save Tire Settings</Text>
@@ -933,4 +986,3 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 });
-

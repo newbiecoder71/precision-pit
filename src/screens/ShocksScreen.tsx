@@ -150,6 +150,7 @@ export default function ShocksScreen() {
       />
 
       {userName ? <Text style={styles.welcomeText}>{`Welcome, ${userName}!`}</Text> : null}
+      <Text style={styles.pageTitle}>Suspension</Text>
       <Text style={styles.p}>
         Save your baseline front and rear suspension settings here so race-night changes have a
         clean starting point.
@@ -202,6 +203,14 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 18,
     fontWeight: "800",
+    marginBottom: spacing(0.5),
+    paddingHorizontal: spacing(2),
+    textAlign: "center",
+  },
+  pageTitle: {
+    color: "#EAF7FF",
+    fontSize: 28,
+    fontWeight: "900",
     marginBottom: spacing(0.5),
     paddingHorizontal: spacing(2),
     textAlign: "center",

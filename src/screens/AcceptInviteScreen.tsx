@@ -76,7 +76,11 @@ export default function AcceptInviteScreen({ navigation }: any) {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 96 : 24}
         >
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardDismissMode="none"
+            keyboardShouldPersistTaps="always"
+          >
             <Pressable onPress={handleCancel} style={styles.backButton}>
               <Text style={styles.backButtonText}>{"< Back"}</Text>
             </Pressable>

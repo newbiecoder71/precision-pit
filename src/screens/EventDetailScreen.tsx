@@ -3,6 +3,7 @@ import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput as 
 import TextInput from "../components/AppTextInput";
 import { colors, spacing } from "../theme";
 import { useAppStore } from "../store/useAppStore";
+import { formatStoredDateValue } from "../utils/date";
 
 export default function EventDetailScreen({ navigation, route }: any) {
   const eventId = route.params?.eventId as string;
@@ -21,19 +22,54 @@ export default function EventDetailScreen({ navigation, route }: any) {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [eventId, raceNights],
   );
+  const otherActiveRaceNight = useMemo(
+    () =>
+      raceNights.find((raceNight) => raceNight.eventId !== eventId && raceNight.status === "active"),
+    [eventId, raceNights],
+  );
 
   useEffect(() => {
     setEditedTitle(event?.title ?? "");
   }, [eventId]);
 
   const handleStartRaceNight = async () => {
-    try {
-      const raceNightId = await startRaceNight(eventId);
-      navigation.navigate("RaceNight", { raceNightId });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to start the race night.";
-      Alert.alert("Start failed", message);
+    const startSelectedRaceNight = async (options?: {
+      allowWithOtherActive?: boolean;
+      completeOtherActive?: boolean;
+    }) => {
+      try {
+        const raceNightId = await startRaceNight(eventId, options);
+        navigation.navigate("RaceNight", { raceNightId });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to start the race night.";
+        Alert.alert("Unable to start race", message);
+      }
+    };
+
+    if (otherActiveRaceNight) {
+      Alert.alert(
+        "Previous race still active",
+        `Do you want to mark the ${formatStoredDateValue(otherActiveRaceNight.eventDate)} race completed first before starting this race?`,
+        [
+          {
+            text: "No",
+            onPress: () => {
+              void startSelectedRaceNight({ allowWithOtherActive: true });
+            },
+          },
+          {
+            text: "Yes",
+            onPress: () => {
+              void startSelectedRaceNight({ completeOtherActive: true });
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+      return;
     }
+
+    await startSelectedRaceNight();
   };
 
   const handleSaveTitle = async () => {

@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
 import { dirtOvalTracks } from "../data/dirtOvalTracks";
-import { racingTypeOptions } from "../data/racing";
+import { trackTypeOptions } from "../data/racing";
 import { useAppStore } from "../store/useAppStore";
 import { colors, spacing } from "../theme";
 
@@ -108,6 +108,13 @@ export default function SavedTracksScreen() {
                       key={`${track.name}-${track.state}`}
                       onPress={() => {
                         setName(track.name);
+                        setTrackType(track.trackType || "Dirt Oval");
+                        if (track.banking) {
+                          setBanking(track.banking);
+                        }
+                        if (track.length) {
+                          setLength(track.length);
+                        }
                         setShowTrackMenu(false);
                       }}
                       style={styles.menuRow}
@@ -146,7 +153,7 @@ export default function SavedTracksScreen() {
 
             {showTrackTypeMenu ? (
               <View style={styles.menu}>
-                {racingTypeOptions.map((option) => (
+                {trackTypeOptions.map((option) => (
                   <Pressable
                     key={option}
                     onPress={() => {

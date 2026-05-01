@@ -1,37 +1,61 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import TextInput from "../components/AppTextInput";
-import { getRaceCarTypeOptions, racingTypeOptions } from "../data/racing";
+import KeyboardScreen from "../components/KeyboardScreen";
+import {
+  getRaceCarTypeOptions,
+  getRacingTypeOptions,
+  trackTypeOptions,
+} from "../data/racing";
 import { colors } from "../theme";
 import { useAppStore } from "../store/useAppStore";
 
 export default function SettingsScreen({ navigation }: any) {
-  const scrollRef = React.useRef<ScrollView>(null);
+  const scrollRef = React.useRef<KeyboardAwareScrollView>(null);
   const teamName = useAppStore((state) => state.teamName);
+  const driverName = useAppStore((state) => state.driverName);
+  const crewChiefName = useAppStore((state) => state.crewChiefName);
   const userName = useAppStore((state) => state.userName);
   const racingType = useAppStore((state) => state.racingType);
   const raceCarType = useAppStore((state) => state.raceCarType);
+  const carClass = useAppStore((state) => state.carClass);
+  const engineType = useAppStore((state) => state.engineType);
+  const fuelType = useAppStore((state) => state.fuelType);
+  const carburetorType = useAppStore((state) => state.carburetorType);
   const isTeamOwner = useAppStore((state) => state.isTeamOwner);
   const saveProfile = useAppStore((state) => state.saveProfile);
-  const [draftUserName, setDraftUserName] = useState(userName ?? "");
-  const [draftRacingType, setDraftRacingType] = useState(racingType ?? "");
-  const [draftRaceCarType, setDraftRaceCarType] = useState(raceCarType ?? "");
+  const [draftDriverName, setDraftDriverName] = useState(driverName ?? "");
+  const [draftCrewChiefName, setDraftCrewChiefName] = useState(crewChiefName ?? "");
+  const [draftTrackType, setDraftTrackType] = useState(racingType ?? "");
+  const [draftRacingType, setDraftRacingType] = useState(raceCarType ?? "");
+  const [draftCarClass, setDraftCarClass] = useState(carClass ?? "");
+  const [draftEngineType, setDraftEngineType] = useState(engineType ?? "");
+  const [draftFuelType, setDraftFuelType] = useState(fuelType ?? "");
+  const [draftCarburetorType, setDraftCarburetorType] = useState(carburetorType ?? "");
+  const [showTrackTypeMenu, setShowTrackTypeMenu] = useState(false);
   const [showRacingTypeMenu, setShowRacingTypeMenu] = useState(false);
-  const [showRaceCarTypeMenu, setShowRaceCarTypeMenu] = useState(false);
+  const [showCarClassMenu, setShowCarClassMenu] = useState(false);
 
-  const raceCarOptions = getRaceCarTypeOptions(draftRacingType);
+  const availableRacingTypes = getRacingTypeOptions(draftTrackType);
+  const availableCarClasses = getRaceCarTypeOptions(draftRacingType);
 
   useEffect(() => {
-    setDraftUserName(userName ?? "");
-    setDraftRacingType(racingType ?? "");
-    setDraftRaceCarType(raceCarType ?? "");
-  }, [teamName, userName, racingType, raceCarType]);
+    setDraftDriverName(driverName ?? "");
+    setDraftCrewChiefName(crewChiefName ?? "");
+    setDraftTrackType(racingType ?? "");
+    setDraftRacingType(raceCarType ?? "");
+    setDraftCarClass(carClass ?? "");
+    setDraftEngineType(engineType ?? "");
+    setDraftFuelType(fuelType ?? "");
+    setDraftCarburetorType(carburetorType ?? "");
+  }, [driverName, crewChiefName, racingType, raceCarType, carClass, engineType, fuelType, carburetorType]);
 
   useFocusEffect(
     React.useCallback(() => {
       const timeout = setTimeout(() => {
-        scrollRef.current?.scrollTo({ y: 0, animated: false });
+        scrollRef.current?.scrollToPosition?.(0, 0, false);
       }, 0);
 
       return () => clearTimeout(timeout);
@@ -40,10 +64,22 @@ export default function SettingsScreen({ navigation }: any) {
 
   const handleSave = async () => {
     try {
-      await saveProfile(teamName, draftUserName, draftRacingType, draftRaceCarType);
+      await saveProfile(
+        teamName,
+        userName,
+        draftTrackType,
+        draftRacingType,
+        draftCarClass,
+        draftDriverName,
+        draftCrewChiefName,
+        draftEngineType,
+        draftFuelType,
+        draftCarburetorType,
+      );
+      setShowTrackTypeMenu(false);
       setShowRacingTypeMenu(false);
-      setShowRaceCarTypeMenu(false);
-      Alert.alert("Saved", "Team defaults and profile changes were saved.");
+      setShowCarClassMenu(false);
+      Alert.alert("Saved", "Settings were saved.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save changes.";
       Alert.alert("Save failed", message);
@@ -51,43 +87,115 @@ export default function SettingsScreen({ navigation }: any) {
   };
 
   return (
-    <ScrollView ref={scrollRef} contentContainerStyle={styles.container}>
+    <KeyboardScreen
+      scrollRef={scrollRef}
+      style={styles.screen}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="always"
+    >
       {isTeamOwner ? (
         <>
-          <Text style={styles.label}>Team Name</Text>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Team Name</Text>
+          </Pressable>
           <View style={styles.lockedCard}>
             <Text style={styles.lockedValue}>{teamName || "Not set"}</Text>
             <Pressable
               onPress={() => navigation.getParent?.()?.navigate("Support")}
               style={styles.secondaryActionButton}
             >
-              <Text style={styles.secondaryActionButtonText}>Contact Support</Text>
+              <Text style={styles.secondaryActionButtonText}>Contact Precision Pit</Text>
             </Pressable>
           </View>
 
-          <Text style={styles.label}>Default Racing Type</Text>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Track Type</Text>
+          </Pressable>
           <View style={styles.dropdownWrap}>
             <Pressable
               onPress={() => {
-                setShowRacingTypeMenu((current) => !current);
-                setShowRaceCarTypeMenu(false);
+                Keyboard.dismiss();
+                setShowTrackTypeMenu((current) => !current);
+                setShowRacingTypeMenu(false);
+                setShowCarClassMenu(false);
               }}
               style={styles.dropdownButton}
             >
-              <Text style={draftRacingType ? styles.dropdownValue : styles.dropdownPlaceholder}>
-                {draftRacingType || "Select racing type"}
+              <Text style={draftTrackType ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                {draftTrackType || "Select track type"}
               </Text>
-              <Text style={styles.dropdownCaret}>{showRacingTypeMenu ? "▲" : "▼"}</Text>
+              <Text style={styles.dropdownCaret}>{showTrackTypeMenu ? "^" : "v"}</Text>
+            </Pressable>
+
+            {showTrackTypeMenu ? (
+              <View style={styles.menu}>
+                {trackTypeOptions.map((option) => (
+                  <Pressable
+                    key={option}
+                    onPress={() => {
+                      setDraftTrackType(option);
+                      setDraftRacingType("");
+                      setDraftCarClass("");
+                      setShowTrackTypeMenu(false);
+                    }}
+                    style={[
+                      styles.menuItem,
+                      draftTrackType === option ? styles.menuItemActive : undefined,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.menuItemText,
+                        draftTrackType === option ? styles.menuItemTextActive : undefined,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
+
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Racing Type</Text>
+          </Pressable>
+          <View style={styles.dropdownWrap}>
+            <Pressable
+              onPress={() => {
+                Keyboard.dismiss();
+                if (availableRacingTypes.length === 0) {
+                  return;
+                }
+
+                setShowRacingTypeMenu((current) => !current);
+                setShowTrackTypeMenu(false);
+                setShowCarClassMenu(false);
+              }}
+              style={[
+                styles.dropdownButton,
+                availableRacingTypes.length === 0 ? styles.dropdownButtonDisabled : undefined,
+              ]}
+            >
+              <Text style={draftRacingType ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                {draftRacingType ||
+                  (availableRacingTypes.length > 0
+                    ? "Select racing type"
+                    : "Choose track type first")}
+              </Text>
+              <Text style={styles.dropdownCaret}>
+                {showRacingTypeMenu && availableRacingTypes.length > 0 ? "^" : "v"}
+              </Text>
             </Pressable>
 
             {showRacingTypeMenu ? (
               <View style={styles.menu}>
-                {racingTypeOptions.map((option) => (
+                {availableRacingTypes.map((option) => (
                   <Pressable
                     key={option}
                     onPress={() => {
                       setDraftRacingType(option);
-                      setDraftRaceCarType("");
+                      setDraftCarClass("");
                       setShowRacingTypeMenu(false);
                     }}
                     style={[
@@ -109,49 +217,53 @@ export default function SettingsScreen({ navigation }: any) {
             ) : null}
           </View>
 
-          <Text style={styles.label}>Default Race Car Type</Text>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Car Class</Text>
+          </Pressable>
           <View style={styles.dropdownWrap}>
             <Pressable
               onPress={() => {
-                if (raceCarOptions.length === 0) {
+                Keyboard.dismiss();
+                if (availableCarClasses.length === 0) {
                   return;
                 }
 
-                setShowRaceCarTypeMenu((current) => !current);
+                setShowCarClassMenu((current) => !current);
+                setShowTrackTypeMenu(false);
                 setShowRacingTypeMenu(false);
               }}
               style={[
                 styles.dropdownButton,
-                raceCarOptions.length === 0 ? styles.dropdownButtonDisabled : undefined,
+                availableCarClasses.length === 0 ? styles.dropdownButtonDisabled : undefined,
               ]}
             >
-              <Text style={draftRaceCarType ? styles.dropdownValue : styles.dropdownPlaceholder}>
-                {draftRaceCarType ||
-                  (raceCarOptions.length > 0 ? "Select race car type" : "Choose racing type first")}
+              <Text style={draftCarClass ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                {draftCarClass ||
+                  (availableCarClasses.length > 0 ? "Select car class" : "Choose racing type first")}
               </Text>
               <Text style={styles.dropdownCaret}>
-                {showRaceCarTypeMenu && raceCarOptions.length > 0 ? "▲" : "▼"}
+                {showCarClassMenu && availableCarClasses.length > 0 ? "^" : "v"}
               </Text>
             </Pressable>
 
-            {showRaceCarTypeMenu ? (
+            {showCarClassMenu ? (
               <View style={styles.menu}>
-                {raceCarOptions.map((option) => (
+                {availableCarClasses.map((option) => (
                   <Pressable
                     key={option}
                     onPress={() => {
-                      setDraftRaceCarType(option);
-                      setShowRaceCarTypeMenu(false);
+                      setDraftCarClass(option);
+                      setShowCarClassMenu(false);
                     }}
                     style={[
                       styles.menuItem,
-                      draftRaceCarType === option ? styles.menuItemActive : undefined,
+                      draftCarClass === option ? styles.menuItemActive : undefined,
                     ]}
                   >
                     <Text
                       style={[
                         styles.menuItemText,
-                        draftRaceCarType === option ? styles.menuItemTextActive : undefined,
+                        draftCarClass === option ? styles.menuItemTextActive : undefined,
                       ]}
                     >
                       {option}
@@ -162,33 +274,96 @@ export default function SettingsScreen({ navigation }: any) {
             ) : null}
           </View>
 
-          <Text style={styles.helper}>
-            These team defaults will drive the setup templates shown across the app.
-          </Text>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.helper}>
+              Track Type, Racing Type, and Car Class shape the setup logic shown across the app.
+            </Text>
+          </Pressable>
+
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Engine Type</Text>
+          </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="GM 602 crate"
+            placeholderTextColor="#4F7390"
+            value={draftEngineType}
+            onChangeText={setDraftEngineType}
+          />
+
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Fuel Type</Text>
+          </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="Methanol"
+            placeholderTextColor="#4F7390"
+            value={draftFuelType}
+            onChangeText={setDraftFuelType}
+          />
+
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Carburetor Type</Text>
+          </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="2 barrel Rochester"
+            placeholderTextColor="#4F7390"
+            value={draftCarburetorType}
+            onChangeText={setDraftCarburetorType}
+          />
+
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Driver</Text>
+          </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="Driver name"
+            placeholderTextColor="#4F7390"
+            value={draftDriverName}
+            onChangeText={setDraftDriverName}
+          />
+
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Crew Chief</Text>
+          </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="Crew chief name"
+            placeholderTextColor="#4F7390"
+            value={draftCrewChiefName}
+            onChangeText={setDraftCrewChiefName}
+          />
         </>
-      ) : null}
+      ) : (
+        <Pressable onPress={Keyboard.dismiss} style={styles.infoCard}>
+          <Text style={styles.infoText}>
+            Only the owner can change team settings. Support for team branding is planned for a future update.
+          </Text>
+        </Pressable>
+      )}
 
-      <Text style={styles.label}>Driver Or Crew Chief</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Name"
-        placeholderTextColor="#4F7390"
-        value={draftUserName}
-        onChangeText={setDraftUserName}
-      />
-
-      <Pressable onPress={handleSave} style={styles.button}>
+      <Pressable
+        onPress={() => {
+          Keyboard.dismiss();
+          void handleSave();
+        }}
+        style={styles.button}
+      >
         <Text style={styles.buttonText}>Save Changes</Text>
       </Pressable>
-    </ScrollView>
+    </KeyboardScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: colors.bg,
+    flex: 1,
+  },
   container: {
     backgroundColor: colors.bg,
     flexGrow: 1,
-    justifyContent: "center",
     padding: 20,
   },
   label: {
@@ -294,16 +469,25 @@ const styles = StyleSheet.create({
   menuItemTextActive: {
     color: "#F3FAFF",
   },
-  emptyText: {
-    color: "#6C8CA5",
-    fontSize: 15,
-  },
   helper: {
     color: "#87AFCB",
     fontSize: 14,
     lineHeight: 20,
     marginTop: -4,
     marginBottom: 18,
+  },
+  infoCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 18,
+    marginBottom: 18,
+    padding: 18,
+  },
+  infoText: {
+    color: colors.subtext,
+    fontSize: 15,
+    lineHeight: 22,
   },
   button: {
     alignItems: "center",
@@ -317,5 +501,3 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 });
-
-

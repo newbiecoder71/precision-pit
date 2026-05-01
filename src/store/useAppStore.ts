@@ -12,6 +12,7 @@ import {
   createDefaultChecklistSections,
   RaceNightChecklistSection,
 } from "../data/raceNight";
+import { findDirtOvalTrackByName } from "../data/dirtOvalTracks";
 import { getRaceCarTypeOptions } from "../data/racing";
 import { formatStoredDateValue, getDateSortValue } from "../utils/date";
 import { getPasswordValidationMessage } from "../utils/password";
@@ -21,6 +22,7 @@ const STORAGE_KEYS = {
   hasSeenHomeTutorial: "hasSeenHomeTutorial",
   hasExistingLoginProfile: "hasExistingLoginProfile",
   authSnapshot: "authSnapshot",
+  brandingPreferences: "brandingPreferences",
   chassisSetup: "chassisSetup",
   tireSetup: "tireSetup",
   suspensionSetup: "suspensionSetup",
@@ -37,6 +39,10 @@ export type ChassisSetup = {
   rideHeightRf: string;
   rideHeightLr: string;
   rideHeightRr: string;
+  topWingAngle: string;
+  sliderPosition: string;
+  wickerBillSize: string;
+  noseWingAngle: string;
   scaleLf: string;
   scaleRf: string;
   scaleLr: string;
@@ -68,10 +74,26 @@ export type TireSetup = {
   rfCircumference: string;
   lrCircumference: string;
   rrCircumference: string;
+  lfWheelOffset: string;
+  rfWheelOffset: string;
+  lrWheelOffset: string;
+  rrWheelOffset: string;
   lfPressure: string;
   rfPressure: string;
   lrPressure: string;
   rrPressure: string;
+  lfTempInner: string;
+  lfTempMiddle: string;
+  lfTempOuter: string;
+  rfTempInner: string;
+  rfTempMiddle: string;
+  rfTempOuter: string;
+  lrTempInner: string;
+  lrTempMiddle: string;
+  lrTempOuter: string;
+  rrTempInner: string;
+  rrTempMiddle: string;
+  rrTempOuter: string;
 };
 
 export type SuspensionSetup = {
@@ -92,14 +114,26 @@ export type SuspensionSetup = {
 export type GearSetup = {
   ringTeeth: string;
   pinionTeeth: string;
+  quickChangeTopTeeth: string;
+  quickChangeBottomTeeth: string;
   notes: string;
 };
 
+export type BrandingPreferences = {
+  primaryColor: string;
+  secondaryColor: string;
+  carNumberImageUri: string;
+  profileBackgroundImageUri: string;
+};
+
+export type TeamRole = "Owner" | "Driver" | "Crew Chief" | "Crew";
+
 export type TeamMember = {
   id: string;
+  userId?: string;
   email: string;
   name: string;
-  role: "Owner" | "Crew";
+  role: TeamRole;
   status: "active";
 };
 
@@ -109,6 +143,31 @@ export type PendingInvite = {
   invitedAt: string;
   status: "pending";
 };
+
+const teamRoleSortOrder: Record<TeamRole, number> = {
+  Owner: 0,
+  Driver: 1,
+  "Crew Chief": 2,
+  Crew: 3,
+};
+
+function normalizeTeamRole(value: string): TeamRole {
+  const normalizedValue = value.trim().toLowerCase();
+
+  switch (normalizedValue) {
+    case "owner":
+      return "Owner";
+    case "driver":
+      return "Driver";
+    case "crew chief":
+      return "Crew Chief";
+    case "crew member":
+    case "crew":
+      return "Crew";
+    default:
+      throw new Error("Invalid team-member role.");
+  }
+}
 
 export type RaceEvent = {
   id: string;
@@ -189,6 +248,7 @@ export type RaceNight = {
   lastViewedStage?: RaceNightStageKey;
   racingType?: string;
   raceCarType?: string;
+  carClass?: string;
   status: "active" | "completed" | "rainout";
   rainoutStage?: RaceNightStageKey;
   createdAt: string;
@@ -222,6 +282,8 @@ export type GearInventoryItem = {
   label: string;
   ringTeeth: string;
   pinionTeeth: string;
+  quickChangeTopTeeth: string;
+  quickChangeBottomTeeth: string;
   ratio?: string;
   notes: string;
   createdAt: string;
@@ -243,6 +305,10 @@ const emptyChassisSetup: ChassisSetup = {
   rideHeightRf: "",
   rideHeightLr: "",
   rideHeightRr: "",
+  topWingAngle: "",
+  sliderPosition: "",
+  wickerBillSize: "",
+  noseWingAngle: "",
   scaleLf: "",
   scaleRf: "",
   scaleLr: "",
@@ -274,10 +340,26 @@ const emptyTireSetup: TireSetup = {
   rfCircumference: "",
   lrCircumference: "",
   rrCircumference: "",
+  lfWheelOffset: "",
+  rfWheelOffset: "",
+  lrWheelOffset: "",
+  rrWheelOffset: "",
   lfPressure: "",
   rfPressure: "",
   lrPressure: "",
   rrPressure: "",
+  lfTempInner: "",
+  lfTempMiddle: "",
+  lfTempOuter: "",
+  rfTempInner: "",
+  rfTempMiddle: "",
+  rfTempOuter: "",
+  lrTempInner: "",
+  lrTempMiddle: "",
+  lrTempOuter: "",
+  rrTempInner: "",
+  rrTempMiddle: "",
+  rrTempOuter: "",
 };
 
 const emptySuspensionSetup: SuspensionSetup = {
@@ -298,6 +380,8 @@ const emptySuspensionSetup: SuspensionSetup = {
 const emptyGearSetup: GearSetup = {
   ringTeeth: "",
   pinionTeeth: "",
+  quickChangeTopTeeth: "",
+  quickChangeBottomTeeth: "",
   notes: "",
 };
 
@@ -306,6 +390,12 @@ const emptyGearInventory: GearInventoryItem[] = [];
 const emptySavedTracks: SavedTrack[] = [];
 const emptyRaceEvents: RaceEvent[] = [];
 const emptyRaceNights: RaceNight[] = [];
+const defaultBrandingPreferences: BrandingPreferences = {
+  primaryColor: "#1780D4",
+  secondaryColor: "#8ED4FF",
+  carNumberImageUri: "",
+  profileBackgroundImageUri: "",
+};
 
 function buildChassisBaselineSummary(setup: ChassisSetup) {
   const parts: string[] = [];
@@ -351,6 +441,17 @@ function buildTireBaselineSummary(setup: TireSetup) {
     );
   }
 
+  if (
+    setup.lfWheelOffset.trim() ||
+    setup.rfWheelOffset.trim() ||
+    setup.lrWheelOffset.trim() ||
+    setup.rrWheelOffset.trim()
+  ) {
+    parts.push(
+      `Wheel Offset LF ${setup.lfWheelOffset.trim() || "-"} / RF ${setup.rfWheelOffset.trim() || "-"} / LR ${setup.lrWheelOffset.trim() || "-"} / RR ${setup.rrWheelOffset.trim() || "-"}`,
+    );
+  }
+
   return parts.join(" | ");
 }
 
@@ -392,8 +493,122 @@ function cloneChecklistSections(
   }));
 }
 
+function mergeChecklistSectionsForSync(
+  localSections: RaceNightChecklistSection[],
+  remoteSections: RaceNightChecklistSection[],
+): RaceNightChecklistSection[] {
+  const localSectionMap = new Map(localSections.map((section) => [section.id, section]));
+
+  return remoteSections.map((remoteSection) => {
+    const localSection = localSectionMap.get(remoteSection.id);
+    const localItemMap = new Map((localSection?.items ?? []).map((item) => [item.id, item]));
+
+    return {
+      ...remoteSection,
+      items: remoteSection.items.map((remoteItem) => {
+        const localItem = localItemMap.get(remoteItem.id);
+        const checked = localItem ? localItem.checked : remoteItem.checked;
+        const checkedByName = checked
+          ? localItem
+            ? localItem.checkedByName
+            : remoteItem.checkedByName
+          : undefined;
+
+        return {
+          ...remoteItem,
+          checked,
+          checkedByName,
+        };
+      }),
+    };
+  });
+}
+
+function mergeRaceNightChecklistForSync(localRaceNight: RaceNight, remoteRaceNight: RaceNight): RaceNight {
+  const nextStageSessions = { ...remoteRaceNight.stageSessions };
+
+  raceNightStageOrder.forEach((stageKey) => {
+    const localStage = localRaceNight.stageSessions[stageKey];
+    const remoteStage = remoteRaceNight.stageSessions[stageKey];
+
+    nextStageSessions[stageKey] = {
+      ...remoteStage,
+      checklistSections: mergeChecklistSectionsForSync(
+        localStage.checklistSections,
+        remoteStage.checklistSections,
+      ),
+    };
+  });
+
+  return normalizeRaceNightRecord({
+    ...remoteRaceNight,
+    stageSessions: nextStageSessions,
+  });
+}
+
+function mergeRaceNightChecklistForSave(localRaceNight: RaceNight, remoteRaceNight: RaceNight): RaceNight {
+  const nextStageSessions = { ...localRaceNight.stageSessions };
+
+  raceNightStageOrder.forEach((stageKey) => {
+    const localStage = localRaceNight.stageSessions[stageKey];
+    const remoteStage = remoteRaceNight.stageSessions[stageKey];
+
+    nextStageSessions[stageKey] = {
+      ...localStage,
+      checklistSections: mergeChecklistSectionsForSync(
+        localStage.checklistSections,
+        remoteStage.checklistSections,
+      ),
+    };
+  });
+
+  return normalizeRaceNightRecord({
+    ...localRaceNight,
+    stageSessions: nextStageSessions,
+  });
+}
+
 function normalizeTrackName(value: string) {
   return value.trim().toLowerCase();
+}
+
+function sortTeamMembers(members: TeamMember[]) {
+  return [...members].sort((a, b) => {
+    const roleDifference = teamRoleSortOrder[a.role] - teamRoleSortOrder[b.role];
+    if (roleDifference !== 0) {
+      return roleDifference;
+    }
+
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function normalizeTeamVehicleSelections(trackType?: string, racingType?: string, carClass?: string) {
+  const nextTrackType = trackType?.trim() || undefined;
+  const nextRacingType = racingType?.trim() || undefined;
+  const nextCarClass = carClass?.trim() || undefined;
+
+  if (nextTrackType === "Sprint Cars") {
+    return {
+      trackType: "Dirt Oval",
+      racingType: "Sprint Car",
+      carClass: nextRacingType ?? nextCarClass,
+    };
+  }
+
+  if (nextRacingType === "Sprint Cars") {
+    return {
+      trackType: nextTrackType ?? "Dirt Oval",
+      racingType: "Sprint Car",
+      carClass: nextCarClass,
+    };
+  }
+
+  return {
+    trackType: nextTrackType,
+    racingType: nextRacingType,
+    carClass: nextCarClass,
+  };
 }
 
 function findSavedTrackMatch(savedTracks: SavedTrack[], trackName: string) {
@@ -541,6 +756,19 @@ function normalizeRaceNightStageData(stage?: Partial<RaceNightStageData>): RaceN
         : createDefaultChecklistSections(),
   };
 
+  if (!nextStage.setupAdjustments.tires.lfWheelOffset.trim() && typeof legacyChassis["wheelOffsetLf"] === "string") {
+    nextStage.setupAdjustments.tires.lfWheelOffset = legacyChassis["wheelOffsetLf"];
+  }
+  if (!nextStage.setupAdjustments.tires.rfWheelOffset.trim() && typeof legacyChassis["wheelOffsetRf"] === "string") {
+    nextStage.setupAdjustments.tires.rfWheelOffset = legacyChassis["wheelOffsetRf"];
+  }
+  if (!nextStage.setupAdjustments.tires.lrWheelOffset.trim() && typeof legacyChassis["wheelOffsetLr"] === "string") {
+    nextStage.setupAdjustments.tires.lrWheelOffset = legacyChassis["wheelOffsetLr"];
+  }
+  if (!nextStage.setupAdjustments.tires.rrWheelOffset.trim() && typeof legacyChassis["wheelOffsetRr"] === "string") {
+    nextStage.setupAdjustments.tires.rrWheelOffset = legacyChassis["wheelOffsetRr"];
+  }
+
   nextStage.started = isRaceNightStageStarted(nextStage);
   return nextStage;
 }
@@ -571,6 +799,32 @@ function createLegacyBaseStageData(raceNight: Partial<RaceNight>): RaceNightStag
     lapTimes: raceNight.lapTimes,
     checklistSections: raceNight.checklistSections,
   });
+}
+
+function backfillTrackMetadataFromBuiltInTrack(raceNight: RaceNight): RaceNight {
+  const builtInTrack = findDirtOvalTrackByName(raceNight.trackName);
+
+  if (!builtInTrack) {
+    return raceNight;
+  }
+
+  const fillStage = (stage: RaceNightStageData): RaceNightStageData =>
+    normalizeRaceNightStageData({
+      ...stage,
+      trackType: stage.trackType || builtInTrack.trackType || "",
+      trackBanking: stage.trackBanking || builtInTrack.banking || "",
+      trackLength: stage.trackLength || builtInTrack.length || "",
+    });
+
+  return {
+    ...raceNight,
+    stageSessions: {
+      hotLaps: fillStage(raceNight.stageSessions.hotLaps),
+      heat: fillStage(raceNight.stageSessions.heat),
+      bFeature: fillStage(raceNight.stageSessions.bFeature),
+      aFeature: fillStage(raceNight.stageSessions.aFeature),
+    },
+  };
 }
 
 function getDisplayFeatureStage(stageSessions: Record<RaceNightStageKey, RaceNightStageData>) {
@@ -688,8 +942,17 @@ function syncRaceNightSummaryFields(raceNight: RaceNight): RaceNight {
 }
 
 function normalizeRaceNightRecord(raceNight: RaceNight): RaceNight {
+  const normalizedVehicleSelections = normalizeTeamVehicleSelections(
+    raceNight.racingType,
+    raceNight.raceCarType,
+    raceNight.carClass,
+  );
+
   const nextRaceNight: RaceNight = {
     ...raceNight,
+    racingType: normalizedVehicleSelections.trackType,
+    raceCarType: normalizedVehicleSelections.racingType,
+    carClass: normalizedVehicleSelections.carClass,
     lastViewedStage:
       raceNight.lastViewedStage && raceNightStageOrder.includes(raceNight.lastViewedStage)
         ? raceNight.lastViewedStage
@@ -697,7 +960,7 @@ function normalizeRaceNightRecord(raceNight: RaceNight): RaceNight {
     stageSessions: buildRaceNightStageSessions(raceNight),
   };
 
-  return syncRaceNightSummaryFields(nextRaceNight);
+  return syncRaceNightSummaryFields(backfillTrackMetadataFromBuiltInTrack(nextRaceNight));
 }
 
 type CreateAccountResult = {
@@ -712,12 +975,20 @@ type InviteMemberResult = {
 
 type TeamStateSnapshot = Pick<
   AppState,
+  | "userId"
   | "teamId"
   | "teamName"
   | "userName"
   | "userEmail"
+  | "currentTeamRole"
+  | "driverName"
+  | "crewChiefName"
   | "racingType"
   | "raceCarType"
+  | "carClass"
+  | "engineType"
+  | "fuelType"
+  | "carburetorType"
   | "isTeamOwner"
   | "teamMembers"
   | "pendingInvites"
@@ -735,17 +1006,27 @@ type AppState = {
   isHydrated: boolean;
   hasSeenOnboarding: boolean;
   hasSeenHomeTutorial: boolean;
+  isReplayingHomeTutorial: boolean;
   hasExistingLoginProfile: boolean;
+  shouldOpenSettingsAfterTeamCreate: boolean;
   isPasswordRecovery: boolean;
   inviteLinkEmail?: string;
   inviteLinkToken?: string;
   inviteLinkTeamName?: string;
+  userId?: string;
   teamId?: string;
   teamName?: string;
   userName?: string;
   userEmail?: string;
+  currentTeamRole?: TeamRole;
+  driverName?: string;
+  crewChiefName?: string;
   racingType?: string;
   raceCarType?: string;
+  carClass?: string;
+  engineType?: string;
+  fuelType?: string;
+  carburetorType?: string;
   isTeamOwner: boolean;
   teamMembers: TeamMember[];
   pendingInvites: PendingInvite[];
@@ -757,12 +1038,15 @@ type AppState = {
   savedTracks: SavedTrack[];
   raceEvents: RaceEvent[];
   raceNights: RaceNight[];
+  brandingPreferences: BrandingPreferences;
   hydrate: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
   completeHomeTutorial: () => Promise<void>;
   replayHomeTutorial: () => Promise<void>;
+  consumeSettingsRedirect: () => void;
   handleAuthRedirect: (url: string) => Promise<void>;
   refreshTeamData: () => Promise<void>;
+  refreshRaceNight: (raceNightId: string) => Promise<void>;
   createAccount: (input: {
     teamName: string;
     userName: string;
@@ -782,11 +1066,19 @@ type AppState = {
     userName?: string,
     racingType?: string,
     raceCarType?: string,
+    carClass?: string,
+    driverName?: string,
+    crewChiefName?: string,
+    engineType?: string,
+    fuelType?: string,
+    carburetorType?: string,
   ) => Promise<void>;
+  saveBrandingPreferences: (input: Partial<BrandingPreferences>) => Promise<void>;
   inviteMember: (input: {
       email: string;
       deliveryMethod: "email" | "text";
     }) => Promise<InviteMemberResult>;
+  updateTeamMemberRole: (memberId: string, role: TeamRole) => Promise<void>;
     deletePendingInvite: (inviteId: string) => Promise<void>;
     requestPasswordReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
@@ -813,13 +1105,18 @@ type AppState = {
     label: string;
     ringTeeth: string;
     pinionTeeth: string;
+    quickChangeTopTeeth: string;
+    quickChangeBottomTeeth: string;
     notes: string;
   }) => Promise<void>;
   deleteGearInventoryItem: (gearId: string) => Promise<void>;
   createRaceEvent: (input: { title: string; trackName: string; eventDate: string }) => Promise<void>;
   updateRaceEventTitle: (eventId: string, title: string) => Promise<void>;
   deleteRaceEvent: (eventId: string) => Promise<void>;
-  startRaceNight: (eventId: string) => Promise<string>;
+  startRaceNight: (
+    eventId: string,
+    options?: { allowWithOtherActive?: boolean; completeOtherActive?: boolean },
+  ) => Promise<string>;
   getActiveRaceNightIdForEvent: (eventId: string) => string | undefined;
   saveRaceNight: (raceNightId: string, updates: Partial<RaceNight>) => Promise<void>;
   deleteRaceNight: (raceNightId: string) => Promise<void>;
@@ -829,35 +1126,50 @@ type AppState = {
 
 type MembershipRow = {
   team_id: string;
-  role: "Owner" | "Crew";
+  role: TeamRole;
   full_name: string | null;
   email: string;
   teams: {
     id: string;
     name: string;
     owner_user_id: string;
+    driver_name: string | null;
+    crew_chief_name: string | null;
     racing_type: string | null;
     race_car_type: string | null;
+    car_class: string | null;
+    engine_type: string | null;
+    fuel_type: string | null;
+    carburetor_type: string | null;
   } | null;
 };
 
 type LegacyMembershipRow = {
   team_id: string;
-  role: "Owner" | "Crew";
+  role: TeamRole;
   full_name: string | null;
   email: string;
   teams: {
     id: string;
     name: string;
     owner_user_id: string;
+    driver_name?: string | null;
+    crew_chief_name?: string | null;
+    racing_type?: string | null;
+    race_car_type?: string | null;
+    car_class?: string | null;
+    engine_type?: string | null;
+    fuel_type?: string | null;
+    carburetor_type?: string | null;
   } | null;
 };
 
 type TeamMemberRow = {
   id: string;
+  user_id: string | null;
   email: string;
   full_name: string | null;
-  role: "Owner" | "Crew";
+  role: TeamRole;
   status: "active";
 };
 
@@ -945,15 +1257,28 @@ async function loadChassisSetup() {
 
 async function loadTireSetup() {
   const rawValue = await AsyncStorage.getItem(STORAGE_KEYS.tireSetup);
-
-  if (!rawValue) {
-    return emptyTireSetup;
-  }
-
   try {
+    const parsedTireSetup = rawValue ? (JSON.parse(rawValue) as Partial<TireSetup>) : {};
+    const legacyChassisRawValue = await AsyncStorage.getItem(STORAGE_KEYS.chassisSetup);
+    const legacyChassisSetup = legacyChassisRawValue
+      ? (JSON.parse(legacyChassisRawValue) as Record<string, unknown>)
+      : {};
+
     return {
       ...emptyTireSetup,
-      ...(JSON.parse(rawValue) as Partial<TireSetup>),
+      ...parsedTireSetup,
+      lfWheelOffset:
+        parsedTireSetup.lfWheelOffset ??
+        (typeof legacyChassisSetup["wheelOffsetLf"] === "string" ? legacyChassisSetup["wheelOffsetLf"] : ""),
+      rfWheelOffset:
+        parsedTireSetup.rfWheelOffset ??
+        (typeof legacyChassisSetup["wheelOffsetRf"] === "string" ? legacyChassisSetup["wheelOffsetRf"] : ""),
+      lrWheelOffset:
+        parsedTireSetup.lrWheelOffset ??
+        (typeof legacyChassisSetup["wheelOffsetLr"] === "string" ? legacyChassisSetup["wheelOffsetLr"] : ""),
+      rrWheelOffset:
+        parsedTireSetup.rrWheelOffset ??
+        (typeof legacyChassisSetup["wheelOffsetRr"] === "string" ? legacyChassisSetup["wheelOffsetRr"] : ""),
     };
   } catch {
     return emptyTireSetup;
@@ -1019,6 +1344,10 @@ function isMissingTeamDefaultsColumnError(message?: string) {
   return (
     message.includes("racing_type") ||
     message.includes("race_car_type") ||
+    message.includes("car_class") ||
+    message.includes("engine_type") ||
+    message.includes("fuel_type") ||
+    message.includes("carburetor_type") ||
     message.includes("Could not find the") ||
     message.includes("column")
   );
@@ -1047,6 +1376,24 @@ function isMissingRaceNightsTableError(message?: string) {
     message.includes("Could not find the table") ||
     message.includes("relation") ||
     message.includes("does not exist")
+  );
+}
+
+function isSupabaseAuthSessionError(message?: string) {
+  if (!message) {
+    return false;
+  }
+
+  const normalizedMessage = message.toLowerCase();
+
+  return (
+    normalizedMessage.includes("auth session") ||
+    normalizedMessage.includes("invalid refresh token") ||
+    normalizedMessage.includes("refresh token") ||
+    normalizedMessage.includes("jwt") ||
+    normalizedMessage.includes("auth session missing") ||
+    normalizedMessage.includes("session not found") ||
+    normalizedMessage.includes("no authenticated user found")
   );
 }
 
@@ -1107,6 +1454,21 @@ async function loadRaceNightsForTeam(teamId: string) {
   return (data ?? []).map(mapRaceNightRowToRecord);
 }
 
+async function loadRaceNightForTeam(teamId: string, raceNightId: string) {
+  const { data, error } = await supabase
+    .from("race_nights")
+    .select("id, event_id, event_title, track_name, event_date, status, created_at, updated_at, payload")
+    .eq("team_id", teamId)
+    .eq("id", raceNightId)
+    .maybeSingle<RaceNightRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapRaceNightRowToRecord(data) : undefined;
+}
+
 async function upsertRaceNightForTeam(teamId: string, raceNight: RaceNight) {
   const user = await getAuthUser();
 
@@ -1156,35 +1518,31 @@ async function mergeMissingLocalRaceNightsForTeam(teamId: string, localRaceNight
     return remoteRaceNights;
   }
 
-  const remoteIds = new Set(remoteRaceNights.map((raceNight) => raceNight.id));
-  const missingLocalRaceNights = localRaceNights
-    .map(normalizeRaceNightRecord)
-    .filter((raceNight) => !remoteIds.has(raceNight.id));
+  const localRaceNightMap = new Map(
+    localRaceNights.map((raceNight) => [raceNight.id, normalizeRaceNightRecord(raceNight)]),
+  );
+  const mergedRemoteRaceNights = remoteRaceNights.map((remoteRaceNight) => {
+    const localRaceNight = localRaceNightMap.get(remoteRaceNight.id);
 
-  if (missingLocalRaceNights.length === 0) {
-    return remoteRaceNights;
+    return localRaceNight ? mergeRaceNightChecklistForSync(localRaceNight, remoteRaceNight) : remoteRaceNight;
+  });
+  const changedMergedRaceNights = mergedRemoteRaceNights.filter((mergedRaceNight) => {
+    const originalRemoteRaceNight = remoteRaceNights.find((raceNight) => raceNight.id === mergedRaceNight.id);
+
+    return originalRemoteRaceNight && JSON.stringify(originalRemoteRaceNight) !== JSON.stringify(mergedRaceNight);
+  });
+
+  if (changedMergedRaceNights.length > 0) {
+    await seedRaceNightsForTeam(teamId, changedMergedRaceNights);
   }
 
-  await seedRaceNightsForTeam(teamId, missingLocalRaceNights);
-  return loadRaceNightsForTeam(teamId);
+  return changedMergedRaceNights.length > 0
+    ? loadRaceNightsForTeam(teamId)
+    : mergedRemoteRaceNights;
 }
 
 async function resolveRaceNightsForTeam(teamId: string, localRaceNights: RaceNight[]) {
   try {
-    let nextRaceNights = await loadRaceNightsForTeam(teamId);
-
-    if (nextRaceNights.length === 0 && localRaceNights.length > 0) {
-      try {
-        await seedRaceNightsForTeam(teamId, localRaceNights);
-        nextRaceNights = await loadRaceNightsForTeam(teamId);
-      } catch (error) {
-        if (!(error instanceof Error) || !isMissingRaceNightsTableError(error.message)) {
-          console.warn("Unable to seed shared race nights. Falling back to local race nights.", error);
-        }
-        return localRaceNights.map(normalizeRaceNightRecord);
-      }
-    }
-
     return mergeMissingLocalRaceNightsForTeam(teamId, localRaceNights);
   } catch (error) {
     if (!(error instanceof Error) || !isMissingRaceNightsTableError(error.message)) {
@@ -1261,41 +1619,12 @@ async function seedRaceEventsForTeam(teamId: string, raceEvents: RaceEvent[]) {
 
 async function mergeMissingLocalRaceEventsForTeam(teamId: string, localRaceEvents: RaceEvent[]) {
   const remoteRaceEvents = await loadRaceEventsForTeam(teamId);
-
-  if (localRaceEvents.length === 0) {
-    return remoteRaceEvents;
-  }
-
-  const remoteKeys = new Set(remoteRaceEvents.map(buildRaceEventSyncKey));
-  const missingLocalRaceEvents = localRaceEvents.filter(
-    (event) => !remoteKeys.has(buildRaceEventSyncKey(event)),
-  );
-
-  if (missingLocalRaceEvents.length === 0) {
-    return remoteRaceEvents;
-  }
-
-  await seedRaceEventsForTeam(teamId, missingLocalRaceEvents);
   return loadRaceEventsForTeam(teamId);
 }
 
 async function resolveRaceEventsForTeam(teamId: string, localRaceEvents: RaceEvent[]) {
   try {
-    let nextRaceEvents = await loadRaceEventsForTeam(teamId);
-
-    if (nextRaceEvents.length === 0 && localRaceEvents.length > 0) {
-      try {
-        await seedRaceEventsForTeam(teamId, localRaceEvents);
-        nextRaceEvents = await loadRaceEventsForTeam(teamId);
-      } catch (error) {
-        if (!(error instanceof Error) || !isMissingRaceEventsTableError(error.message)) {
-          console.warn("Unable to seed shared race events. Falling back to local events.", error);
-        }
-        return localRaceEvents;
-      }
-    }
-
-    return mergeMissingLocalRaceEventsForTeam(teamId, localRaceEvents);
+    return loadRaceEventsForTeam(teamId);
   } catch (error) {
     if (!(error instanceof Error) || !isMissingRaceEventsTableError(error.message)) {
       console.warn("Unable to load shared race events. Falling back to local events.", error);
@@ -1304,17 +1633,47 @@ async function resolveRaceEventsForTeam(teamId: string, localRaceEvents: RaceEve
   }
 }
 
-async function refreshTeamDataForCurrentUser(): Promise<TeamStateSnapshot> {
+async function loadFreshRaceEventsForTeam(teamId: string) {
+  try {
+    return await loadRaceEventsForTeam(teamId);
+  } catch (error) {
+    if (!(error instanceof Error) || !isMissingRaceEventsTableError(error.message)) {
+      console.warn("Unable to load shared race events for a new team. Starting empty.", error);
+    }
+    return [] as RaceEvent[];
+  }
+}
+
+async function loadFreshRaceNightsForTeam(teamId: string) {
+  try {
+    return await loadRaceNightsForTeam(teamId);
+  } catch (error) {
+    if (!(error instanceof Error) || !isMissingRaceNightsTableError(error.message)) {
+      console.warn("Unable to load shared race nights for a new team. Starting empty.", error);
+    }
+    return [] as RaceNight[];
+  }
+}
+
+async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<TeamStateSnapshot> {
   const user = await getAuthUser();
 
   if (!user?.id || !user.email) {
     return {
+      userId: undefined,
       teamId: undefined,
       teamName: undefined,
       userName: undefined,
       userEmail: undefined,
+      currentTeamRole: undefined,
+      driverName: undefined,
+      crewChiefName: undefined,
       racingType: undefined,
       raceCarType: undefined,
+      carClass: undefined,
+      engineType: undefined,
+      fuelType: undefined,
+      carburetorType: undefined,
       isTeamOwner: false,
       teamMembers: [] as TeamMember[],
       pendingInvites: [] as PendingInvite[],
@@ -1323,12 +1682,16 @@ async function refreshTeamDataForCurrentUser(): Promise<TeamStateSnapshot> {
 
   let membershipData: MembershipRow | LegacyMembershipRow | null = null;
 
-  const membershipQuery = supabase
+  let membershipQuery = supabase
     .from("team_members")
-    .select("team_id, role, full_name, email, teams(id, name, owner_user_id, racing_type, race_car_type)")
+    .select("team_id, role, full_name, email, teams(id, name, owner_user_id, driver_name, crew_chief_name, racing_type, race_car_type, car_class, engine_type, fuel_type, carburetor_type)")
     .eq("user_id", user.id)
     .eq("status", "active")
     .limit(1);
+
+  if (preferredTeamId) {
+    membershipQuery = membershipQuery.eq("team_id", preferredTeamId);
+  }
 
   const {
     data: nextMembershipData,
@@ -1340,13 +1703,19 @@ async function refreshTeamDataForCurrentUser(): Promise<TeamStateSnapshot> {
       throw membershipError;
     }
 
-    const { data: legacyMembershipData, error: legacyMembershipError } = await supabase
+    let legacyMembershipQuery = supabase
       .from("team_members")
       .select("team_id, role, full_name, email, teams(id, name, owner_user_id)")
       .eq("user_id", user.id)
       .eq("status", "active")
-      .limit(1)
-      .maybeSingle<LegacyMembershipRow>();
+      .limit(1);
+
+    if (preferredTeamId) {
+      legacyMembershipQuery = legacyMembershipQuery.eq("team_id", preferredTeamId);
+    }
+
+    const { data: legacyMembershipData, error: legacyMembershipError } =
+      await legacyMembershipQuery.maybeSingle<LegacyMembershipRow>();
 
     if (legacyMembershipError) {
       throw legacyMembershipError;
@@ -1359,6 +1728,7 @@ async function refreshTeamDataForCurrentUser(): Promise<TeamStateSnapshot> {
 
   if (!membershipData?.teams) {
     return {
+      userId: user.id,
       teamId: undefined,
       teamName:
         typeof user.user_metadata?.team_name === "string" ? user.user_metadata.team_name : undefined,
@@ -1368,8 +1738,15 @@ async function refreshTeamDataForCurrentUser(): Promise<TeamStateSnapshot> {
           ? user.user_metadata.full_name
           : undefined),
       userEmail: user.email,
+      currentTeamRole: membershipData?.role,
+      driverName: undefined,
+      crewChiefName: undefined,
       racingType: undefined,
       raceCarType: undefined,
+      carClass: undefined,
+      engineType: undefined,
+      fuelType: undefined,
+      carburetorType: undefined,
       isTeamOwner: false,
       teamMembers: [] as TeamMember[],
       pendingInvites: [] as PendingInvite[],
@@ -1377,10 +1754,33 @@ async function refreshTeamDataForCurrentUser(): Promise<TeamStateSnapshot> {
   }
 
   const teamId = membershipData.team_id;
+  const membershipTeam = membershipData.teams;
+  const ownerUserId = membershipTeam.owner_user_id;
+
+  if (ownerUserId === user.id && membershipData.role !== "Owner") {
+    const { error: ownerRoleSyncError } = await supabase
+      .from("team_members")
+      .update({
+        role: "Owner",
+      })
+      .eq("team_id", teamId)
+      .eq("user_id", user.id)
+      .eq("status", "active");
+
+    if (!ownerRoleSyncError) {
+      membershipData = {
+        ...membershipData,
+        role: "Owner",
+      };
+    } else {
+      console.warn("Unable to restore owner role on team member record.", ownerRoleSyncError);
+    }
+  }
+
   const [membersResponse, invitesResponse] = await Promise.all([
     supabase
       .from("team_members")
-      .select("id, email, full_name, role, status")
+      .select("id, user_id, email, full_name, role, status")
       .eq("team_id", teamId)
       .eq("status", "active")
       .returns<TeamMemberRow[]>(),
@@ -1401,24 +1801,43 @@ async function refreshTeamDataForCurrentUser(): Promise<TeamStateSnapshot> {
     throw invitesResponse.error;
   }
 
+  const normalizedVehicleSelections = normalizeTeamVehicleSelections(
+    "racing_type" in membershipTeam ? membershipTeam.racing_type || undefined : undefined,
+    "race_car_type" in membershipTeam ? membershipTeam.race_car_type || undefined : undefined,
+    "car_class" in membershipTeam ? membershipTeam.car_class || undefined : undefined,
+  );
+
   return {
+    userId: user.id,
     teamId,
-    teamName: membershipData.teams.name,
+    teamName: membershipTeam.name,
     userName:
       membershipData.full_name ||
       (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : undefined),
     userEmail: user.email,
-    racingType: "racing_type" in membershipData.teams ? membershipData.teams.racing_type || undefined : undefined,
-    raceCarType:
-      "race_car_type" in membershipData.teams ? membershipData.teams.race_car_type || undefined : undefined,
-    isTeamOwner: membershipData.role === "Owner",
-    teamMembers: (membersResponse.data ?? []).map((member) => ({
-      id: member.id,
-      email: member.email,
-      name: member.full_name || member.email,
-      role: member.role,
-      status: member.status,
-    })),
+    currentTeamRole: ownerUserId === user.id ? "Owner" : membershipData.role,
+    driverName:
+      "driver_name" in membershipTeam ? membershipTeam.driver_name || undefined : undefined,
+    crewChiefName:
+      "crew_chief_name" in membershipTeam ? membershipTeam.crew_chief_name || undefined : undefined,
+    racingType: normalizedVehicleSelections.trackType,
+    raceCarType: normalizedVehicleSelections.racingType,
+    carClass: normalizedVehicleSelections.carClass,
+    engineType: "engine_type" in membershipTeam ? membershipTeam.engine_type || undefined : undefined,
+    fuelType: "fuel_type" in membershipTeam ? membershipTeam.fuel_type || undefined : undefined,
+    carburetorType:
+      "carburetor_type" in membershipTeam ? membershipTeam.carburetor_type || undefined : undefined,
+    isTeamOwner: ownerUserId === user.id,
+    teamMembers: sortTeamMembers(
+      (membersResponse.data ?? []).map((member) => ({
+        id: member.id,
+        userId: member.user_id ?? undefined,
+        email: member.email,
+        name: member.full_name || member.email,
+        role: member.user_id === ownerUserId ? "Owner" : member.role,
+        status: member.status,
+      })),
+    ),
     pendingInvites: (invitesResponse.data ?? []).map((invite) => ({
       id: invite.id,
       email: invite.email,
@@ -1432,23 +1851,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   isHydrated: false,
   hasSeenOnboarding: false,
   hasSeenHomeTutorial: false,
+  isReplayingHomeTutorial: false,
   hasExistingLoginProfile: false,
+  shouldOpenSettingsAfterTeamCreate: false,
   isPasswordRecovery: false,
   inviteLinkEmail: undefined,
   inviteLinkToken: undefined,
   inviteLinkTeamName: undefined,
+  userId: undefined,
   teamId: undefined,
   teamName: undefined,
   userName: undefined,
   userEmail: undefined,
+  currentTeamRole: undefined,
+  driverName: undefined,
+  crewChiefName: undefined,
   racingType: undefined,
   raceCarType: undefined,
+  carClass: undefined,
+  engineType: undefined,
+  fuelType: undefined,
+  carburetorType: undefined,
   isTeamOwner: false,
   teamMembers: [],
   pendingInvites: [],
   chassisSetup: emptyChassisSetup,
   tireSetup: emptyTireSetup,
   suspensionSetup: emptySuspensionSetup,
+  brandingPreferences: defaultBrandingPreferences,
   tireInventory: emptyTireInventory,
   gearInventory: emptyGearInventory,
   savedTracks: emptySavedTracks,
@@ -1468,6 +1898,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       STORAGE_KEYS.tireInventory,
       emptyTireInventory,
     );
+    const brandingPreferences = await loadStoredJson<BrandingPreferences>(
+      STORAGE_KEYS.brandingPreferences,
+      defaultBrandingPreferences,
+    );
     const gearInventory = await loadStoredJson<GearInventoryItem[]>(
       STORAGE_KEYS.gearInventory,
       emptyGearInventory,
@@ -1477,12 +1911,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     const storedRaceNights = await loadStoredJson<RaceNight[]>(STORAGE_KEYS.raceNights, emptyRaceNights);
     const raceNights = storedRaceNights.map(normalizeRaceNightRecord);
     const nextState: TeamStateSnapshot = {
+      userId: undefined,
       teamId: undefined,
       teamName: undefined,
       userName: undefined,
       userEmail: undefined,
+      currentTeamRole: undefined,
+      driverName: undefined,
+      crewChiefName: undefined,
       racingType: undefined,
       raceCarType: undefined,
+      carClass: undefined,
+      engineType: undefined,
+      fuelType: undefined,
+      carburetorType: undefined,
       isTeamOwner: false,
       teamMembers: [] as TeamMember[],
       pendingInvites: [] as PendingInvite[],
@@ -1491,6 +1933,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       STORAGE_KEYS.authSnapshot,
       nextState,
     );
+    let hasStoredSupabaseSession = false;
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        hasStoredSupabaseSession = !!data.session?.user;
+      } catch (error) {
+        console.warn("Unable to read saved Supabase session during startup.", error);
+      }
+    }
 
     set({
         isHydrated: true,
@@ -1504,12 +1956,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       chassisSetup,
       tireSetup,
       suspensionSetup,
+      brandingPreferences: {
+        ...defaultBrandingPreferences,
+        ...brandingPreferences,
+      },
       tireInventory,
       gearInventory,
       savedTracks,
       raceEvents,
       raceNights,
-      ...cachedAuthSnapshot,
+      ...(hasStoredSupabaseSession ? cachedAuthSnapshot : nextState),
     });
 
     if (!isSupabaseConfigured) {
@@ -1521,21 +1977,30 @@ export const useAppStore = create<AppState>((set, get) => ({
         const { data } = await supabase.auth.getSession();
 
         if (!data.session?.user) {
+          await clearAuthSnapshot();
+          stopRaceNightSyncLoop();
           return;
         }
 
         const remoteState = await refreshTeamDataForCurrentUser();
         let syncedRaceEvents = raceEvents;
         let syncedRaceNights = raceNights;
+        const previousTeamId = hasStoredSupabaseSession ? cachedAuthSnapshot.teamId : undefined;
+        const isSameTeam = !!remoteState.teamId && remoteState.teamId === previousTeamId;
 
         if (remoteState.teamId) {
-          syncedRaceEvents = await resolveRaceEventsForTeam(remoteState.teamId, raceEvents);
-          syncedRaceNights = await resolveRaceNightsForTeam(remoteState.teamId, raceNights);
+          syncedRaceEvents = isSameTeam
+            ? await resolveRaceEventsForTeam(remoteState.teamId, raceEvents)
+            : await loadFreshRaceEventsForTeam(remoteState.teamId);
+          syncedRaceNights = isSameTeam
+            ? await resolveRaceNightsForTeam(remoteState.teamId, raceNights)
+            : await loadFreshRaceNightsForTeam(remoteState.teamId);
           startRaceNightSyncLoop(remoteState.teamId);
         } else {
           stopRaceNightSyncLoop();
         }
 
+        await AsyncStorage.setItem(STORAGE_KEYS.raceEvents, JSON.stringify(syncedRaceEvents));
         await persistRaceNightsLocally(syncedRaceNights);
         await persistAuthSnapshot(remoteState);
         set({
@@ -1554,11 +2019,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   completeHomeTutorial: async () => {
     await persistHomeTutorialFlag(true);
-    set({ hasSeenHomeTutorial: true });
+    set({ hasSeenHomeTutorial: true, isReplayingHomeTutorial: false });
   },
     replayHomeTutorial: async () => {
-      await persistHomeTutorialFlag(false);
-      set({ hasSeenHomeTutorial: false });
+      set({ isReplayingHomeTutorial: true });
+    },
+    consumeSettingsRedirect: () => {
+      set({ shouldOpenSettingsAfterTeamCreate: false });
     },
     handleAuthRedirect: async (url) => {
     requireSupabase();
@@ -1595,15 +2062,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextState = await refreshTeamDataForCurrentUser();
     let nextRaceEvents = get().raceEvents;
     let nextRaceNights = get().raceNights;
+    const previousTeamId = get().teamId;
+    const isSameTeam = !!nextState.teamId && nextState.teamId === previousTeamId;
 
     if (nextState.teamId) {
-      nextRaceEvents = await resolveRaceEventsForTeam(nextState.teamId, nextRaceEvents);
-      nextRaceNights = await resolveRaceNightsForTeam(nextState.teamId, nextRaceNights);
+      nextRaceEvents = isSameTeam
+        ? await resolveRaceEventsForTeam(nextState.teamId, nextRaceEvents)
+        : await loadFreshRaceEventsForTeam(nextState.teamId);
+      nextRaceNights = isSameTeam
+        ? await resolveRaceNightsForTeam(nextState.teamId, nextRaceNights)
+        : await loadFreshRaceNightsForTeam(nextState.teamId);
       startRaceNightSyncLoop(nextState.teamId);
     } else {
       stopRaceNightSyncLoop();
     }
 
+    await AsyncStorage.setItem(STORAGE_KEYS.raceEvents, JSON.stringify(nextRaceEvents));
     await persistRaceNightsLocally(nextRaceNights);
     await persistAuthSnapshot(nextState);
     set({
@@ -1673,8 +2147,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       await persistExistingLoginProfileFlag(true);
-      set({ hasExistingLoginProfile: true });
-      await get().refreshTeamData();
+      set({
+        hasExistingLoginProfile: true,
+        shouldOpenSettingsAfterTeamCreate: true,
+      });
+      const nextState = await refreshTeamDataForCurrentUser(teamInsert.id);
+      const nextRaceEvents = await loadFreshRaceEventsForTeam(teamInsert.id);
+      const nextRaceNights = await loadFreshRaceNightsForTeam(teamInsert.id);
+      startRaceNightSyncLoop(teamInsert.id);
+      await AsyncStorage.setItem(STORAGE_KEYS.raceEvents, JSON.stringify(nextRaceEvents));
+      await persistRaceNightsLocally(nextRaceNights);
+      await persistAuthSnapshot(nextState);
+      set({
+        ...nextState,
+        raceEvents: nextRaceEvents,
+        raceNights: nextRaceNights,
+      });
       return { needsEmailConfirmation: false };
     },
   logIn: async ({ email, password }) => {
@@ -1807,20 +2295,62 @@ export const useAppStore = create<AppState>((set, get) => ({
       inviteLinkToken: undefined,
       inviteLinkTeamName: undefined,
     });
-    await get().refreshTeamData();
+
+    const nextState = await refreshTeamDataForCurrentUser(invite.team_id);
+    let nextRaceEvents: RaceEvent[] = [];
+    let nextRaceNights: RaceNight[] = [];
+
+    if (nextState.teamId) {
+      nextRaceEvents = await loadFreshRaceEventsForTeam(nextState.teamId);
+      nextRaceNights = await loadFreshRaceNightsForTeam(nextState.teamId);
+      startRaceNightSyncLoop(nextState.teamId);
+    } else {
+      stopRaceNightSyncLoop();
+    }
+
+    await AsyncStorage.setItem(STORAGE_KEYS.raceEvents, JSON.stringify(nextRaceEvents));
+    await persistRaceNightsLocally(nextRaceNights);
+    await persistAuthSnapshot(nextState);
+    set({
+      ...nextState,
+      raceEvents: nextRaceEvents,
+      raceNights: nextRaceNights,
+    });
+
     return true;
   },
-  saveProfile: async (teamName, userName, racingType, raceCarType) => {
+  saveProfile: async (
+    teamName,
+    userName,
+    racingType,
+    raceCarType,
+    carClass,
+    driverName,
+    crewChiefName,
+    engineType,
+    fuelType,
+    carburetorType,
+  ) => {
     requireSupabase();
 
     const user = await getAuthUser();
     const nextUserName = userName?.trim() || undefined;
-    const nextRacingType = racingType?.trim() || undefined;
-    const allowedRaceCarTypes = getRaceCarTypeOptions(nextRacingType);
-    const nextRaceCarType =
-      raceCarType?.trim() && allowedRaceCarTypes.includes(raceCarType.trim())
-        ? raceCarType.trim()
-        : undefined;
+    const nextDriverName = driverName?.trim() || undefined;
+    const nextCrewChiefName = crewChiefName?.trim() || undefined;
+    const normalizedVehicleSelections = normalizeTeamVehicleSelections(
+      racingType,
+      raceCarType,
+      carClass,
+    );
+    const nextRacingType = normalizedVehicleSelections.trackType;
+    const nextRaceCarType = normalizedVehicleSelections.racingType;
+    const nextCarClass = normalizedVehicleSelections.carClass;
+    const nextEngineType = engineType?.trim() || undefined;
+    const nextFuelType = fuelType?.trim() || undefined;
+    const nextCarburetorType = carburetorType?.trim() || undefined;
+    const allowedRaceCarTypes = getRaceCarTypeOptions(nextRaceCarType);
+    const resolvedCarClass =
+      nextCarClass && allowedRaceCarTypes.includes(nextCarClass) ? nextCarClass : undefined;
     const { teamId, isTeamOwner } = get();
 
     if (!user?.id) {
@@ -1848,15 +2378,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { error: teamUpdateError } = await supabase
         .from("teams")
         .update({
+          driver_name: nextDriverName ?? null,
+          crew_chief_name: nextCrewChiefName ?? null,
           racing_type: nextRacingType ?? null,
           race_car_type: nextRaceCarType ?? null,
+          car_class: resolvedCarClass ?? null,
+          engine_type: nextEngineType ?? null,
+          fuel_type: nextFuelType ?? null,
+          carburetor_type: nextCarburetorType ?? null,
         })
         .eq("id", teamId);
 
       if (teamUpdateError) {
         if (isMissingTeamDefaultsColumnError(teamUpdateError.message)) {
           throw new Error(
-            "The team defaults fields are not in Supabase yet. Run the latest SQL to add racing_type and race_car_type to the teams table, then try Save Changes again.",
+            "The team baseline fields are not in Supabase yet. Run the latest SQL update to add the track type, racing type, car class, engine, fuel, and carburetor columns to the teams table, then try Save Changes again.",
           );
         }
         throw teamUpdateError;
@@ -1864,6 +2400,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     await get().refreshTeamData();
+  },
+  saveBrandingPreferences: async (input) => {
+    const nextPreferences = {
+      ...defaultBrandingPreferences,
+      ...get().brandingPreferences,
+      ...input,
+    };
+
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.brandingPreferences,
+      JSON.stringify(nextPreferences),
+    );
+
+    set({
+      brandingPreferences: nextPreferences,
+    });
   },
     inviteMember: async ({ email, deliveryMethod }) => {
         requireSupabase();
@@ -1978,6 +2530,96 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().refreshTeamData();
     return inviteResult;
   },
+    updateTeamMemberRole: async (memberId, role) => {
+      requireSupabase();
+
+      const trimmedMemberId = memberId.trim();
+      const nextRole = normalizeTeamRole(role);
+      const { teamId, isTeamOwner, currentTeamRole, teamMembers } = get();
+
+      if (!trimmedMemberId || !teamId) {
+        throw new Error("Missing team member details.");
+      }
+
+      if (!isTeamOwner) {
+        throw new Error("Only the team owner can change team-member roles.");
+      }
+
+      const targetMember = teamMembers.find((member) => member.id === trimmedMemberId);
+      if (!targetMember) {
+        throw new Error("Team member not found.");
+      }
+
+      if (targetMember.role === nextRole) {
+        return;
+      }
+
+      if (nextRole === "Owner") {
+        if (!targetMember.userId) {
+          throw new Error("This team member must finish joining the team before becoming the owner.");
+        }
+
+        const currentOwner = teamMembers.find((member) => member.role === "Owner");
+
+        const { error: promoteMemberError } = await supabase
+          .from("team_members")
+          .update({
+            role: "Owner",
+          })
+          .eq("id", targetMember.id)
+          .eq("team_id", teamId);
+
+        if (promoteMemberError) {
+          throw promoteMemberError;
+        }
+
+        const { error } = await supabase
+          .from("teams")
+          .update({
+            owner_user_id: targetMember.userId,
+          })
+          .eq("id", teamId);
+
+        if (error) {
+          throw error;
+        }
+
+        if (currentOwner && currentOwner.id !== targetMember.id) {
+          const { error: demoteOwnerError } = await supabase
+            .from("team_members")
+            .update({
+              role: "Crew",
+            })
+            .eq("id", currentOwner.id)
+            .eq("team_id", teamId);
+
+          if (demoteOwnerError) {
+            throw demoteOwnerError;
+          }
+        }
+
+        await get().refreshTeamData();
+        return;
+      }
+
+      if (targetMember.role === "Owner") {
+        throw new Error("To transfer ownership, choose Owner on another active team member instead.");
+      }
+
+      const { error } = await supabase
+        .from("team_members")
+        .update({
+          role: nextRole,
+        })
+        .eq("id", trimmedMemberId)
+        .eq("team_id", teamId);
+
+      if (error) {
+        throw error;
+      }
+
+      await get().refreshTeamData();
+    },
     deletePendingInvite: async (inviteId) => {
       requireSupabase();
 
@@ -2165,20 +2807,46 @@ export const useAppStore = create<AppState>((set, get) => ({
       tireInventory: nextTireInventory,
     });
   },
-  addGearInventoryItem: async ({ label, ringTeeth, pinionTeeth, notes }) => {
+  addGearInventoryItem: async ({
+    label,
+    ringTeeth,
+    pinionTeeth,
+    quickChangeTopTeeth,
+    quickChangeBottomTeeth,
+    notes,
+  }) => {
     const trimmedLabel = label.trim();
     const trimmedRingTeeth = ringTeeth.trim();
     const trimmedPinionTeeth = pinionTeeth.trim();
+    const trimmedQuickChangeTopTeeth = quickChangeTopTeeth.trim();
+    const trimmedQuickChangeBottomTeeth = quickChangeBottomTeeth.trim();
     const trimmedNotes = notes.trim();
 
-    if (!trimmedLabel || !trimmedRingTeeth || !trimmedPinionTeeth) {
-      throw new Error("Enter a label, ring gear teeth, and pinion gear teeth.");
+    if (
+      !trimmedLabel ||
+      !trimmedRingTeeth ||
+      !trimmedPinionTeeth ||
+      !trimmedQuickChangeTopTeeth ||
+      !trimmedQuickChangeBottomTeeth
+    ) {
+      throw new Error(
+        "Enter a label, ring gear teeth, pinion gear teeth, and both quick-change gears.",
+      );
     }
 
     const ringValue = Number.parseFloat(trimmedRingTeeth);
     const pinionValue = Number.parseFloat(trimmedPinionTeeth);
+    const quickChangeTopValue = Number.parseFloat(trimmedQuickChangeTopTeeth);
+    const quickChangeBottomValue = Number.parseFloat(trimmedQuickChangeBottomTeeth);
 
-    if (Number.isNaN(ringValue) || Number.isNaN(pinionValue) || pinionValue <= 0) {
+    if (
+      Number.isNaN(ringValue) ||
+      Number.isNaN(pinionValue) ||
+      pinionValue <= 0 ||
+      Number.isNaN(quickChangeTopValue) ||
+      Number.isNaN(quickChangeBottomValue) ||
+      quickChangeBottomValue <= 0
+    ) {
       throw new Error("Gear teeth values must be valid numbers.");
     }
 
@@ -2187,7 +2855,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       label: trimmedLabel,
       ringTeeth: trimmedRingTeeth,
       pinionTeeth: trimmedPinionTeeth,
-      ratio: (ringValue / pinionValue).toFixed(3),
+      quickChangeTopTeeth: trimmedQuickChangeTopTeeth,
+      quickChangeBottomTeeth: trimmedQuickChangeBottomTeeth,
+      ratio: ((ringValue / pinionValue) * (quickChangeTopValue / quickChangeBottomValue)).toFixed(3),
       notes: trimmedNotes,
       createdAt: new Date().toISOString(),
     };
@@ -2387,12 +3057,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   getActiveRaceNightIdForEvent: (eventId) =>
     get().raceNights.find((raceNight) => raceNight.eventId === eventId && raceNight.status === "active")
       ?.id,
-  startRaceNight: async (eventId) => {
+  startRaceNight: async (eventId, options) => {
     const event = get().raceEvents.find((entry) => entry.id === eventId);
     const chassisSetup = get().chassisSetup;
     const tireSetup = get().tireSetup;
     const suspensionSetup = get().suspensionSetup;
     const savedTrack = findSavedTrackMatch(get().savedTracks, event?.trackName ?? "");
+    const builtInTrack = findDirtOvalTrackByName(event?.trackName ?? "");
+    const resolvedTrackType = savedTrack?.trackType ?? builtInTrack?.trackType ?? "Dirt Oval";
+    const resolvedTrackBanking = savedTrack?.banking ?? builtInTrack?.banking ?? "";
+    const resolvedTrackLength = savedTrack?.length ?? builtInTrack?.length ?? "";
 
     if (!event) {
       throw new Error("Race event not found.");
@@ -2411,9 +3085,37 @@ export const useAppStore = create<AppState>((set, get) => ({
     );
 
     if (otherActiveRaceNight) {
-      throw new Error(
-        `Complete the currently open race night for ${otherActiveRaceNight.eventTitle} before starting a new one.`,
-      );
+      if (options?.completeOtherActive) {
+        const completedOtherRaceNight = normalizeRaceNightRecord({
+          ...otherActiveRaceNight,
+          status: "completed",
+        });
+        const nextRaceNights = get().raceNights.map((raceNight) =>
+          raceNight.id === otherActiveRaceNight.id ? completedOtherRaceNight : raceNight,
+        );
+
+        await persistRaceNightsLocally(nextRaceNights);
+        set({ raceNights: nextRaceNights });
+
+        const teamId = get().teamId;
+        if (isSupabaseConfigured && teamId) {
+          try {
+            await upsertRaceNightForTeam(teamId, completedOtherRaceNight);
+          } catch (error) {
+            if (
+              !(error instanceof Error) ||
+              (!isMissingRaceNightsTableError(error.message) &&
+                !isSupabaseAuthSessionError(error.message))
+            ) {
+              console.warn("Unable to sync completed previous race night. Keeping local change only.", error);
+            }
+          }
+        }
+      } else if (!options?.allowWithOtherActive) {
+        throw new Error(
+          `Complete the currently open race night for ${otherActiveRaceNight.eventTitle} before starting a new one.`,
+        );
+      }
     }
 
     const nextRaceNight = normalizeRaceNightRecord({
@@ -2425,6 +3127,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       lastViewedStage: "hotLaps",
       racingType: get().racingType,
       raceCarType: get().raceCarType,
+      carClass: get().carClass,
       status: "active",
       createdAt: new Date().toISOString(),
       weatherTemperature: "",
@@ -2452,27 +3155,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       stageSessions: {
         hotLaps: normalizeRaceNightStageData({
           ...buildHotLapsBaselineStage(chassisSetup, tireSetup, suspensionSetup),
-          trackType: savedTrack?.trackType ?? "Dirt Oval",
-          trackBanking: savedTrack?.banking ?? "",
-          trackLength: savedTrack?.length ?? "",
+          trackType: resolvedTrackType,
+          trackBanking: resolvedTrackBanking,
+          trackLength: resolvedTrackLength,
         }),
         heat: normalizeRaceNightStageData({
           ...createEmptyRaceNightStageData(),
-          trackType: savedTrack?.trackType ?? "Dirt Oval",
-          trackBanking: savedTrack?.banking ?? "",
-          trackLength: savedTrack?.length ?? "",
+          trackType: resolvedTrackType,
+          trackBanking: resolvedTrackBanking,
+          trackLength: resolvedTrackLength,
         }),
         bFeature: normalizeRaceNightStageData({
           ...createEmptyRaceNightStageData(),
-          trackType: savedTrack?.trackType ?? "Dirt Oval",
-          trackBanking: savedTrack?.banking ?? "",
-          trackLength: savedTrack?.length ?? "",
+          trackType: resolvedTrackType,
+          trackBanking: resolvedTrackBanking,
+          trackLength: resolvedTrackLength,
         }),
         aFeature: normalizeRaceNightStageData({
           ...createEmptyRaceNightStageData(),
-          trackType: savedTrack?.trackType ?? "Dirt Oval",
-          trackBanking: savedTrack?.banking ?? "",
-          trackLength: savedTrack?.length ?? "",
+          trackType: resolvedTrackType,
+          trackBanking: resolvedTrackBanking,
+          trackLength: resolvedTrackLength,
         }),
       },
     } satisfies RaceNight);
@@ -2487,7 +3190,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         await upsertRaceNightForTeam(teamId, nextRaceNight);
         startRaceNightSyncLoop(teamId);
       } catch (error) {
-        if (!(error instanceof Error) || !isMissingRaceNightsTableError(error.message)) {
+        if (
+          !(error instanceof Error) ||
+          (!isMissingRaceNightsTableError(error.message) &&
+            !isSupabaseAuthSessionError(error.message))
+        ) {
           console.warn("Unable to sync new race night. Keeping local race night only.", error);
         }
       }
@@ -2501,11 +3208,31 @@ export const useAppStore = create<AppState>((set, get) => ({
       throw new Error("Race night not found.");
     }
 
-    const nextRaceNight = normalizeRaceNightRecord({
+    let nextRaceNight = normalizeRaceNightRecord({
       ...currentRaceNight,
       ...updates,
       stageSessions: updates.stageSessions ?? currentRaceNight.stageSessions,
     });
+    const teamId = get().teamId;
+
+    if (isSupabaseConfigured && teamId) {
+      try {
+        const remoteRaceNight = await loadRaceNightForTeam(teamId, raceNightId);
+
+        if (remoteRaceNight) {
+          nextRaceNight = mergeRaceNightChecklistForSave(nextRaceNight, remoteRaceNight);
+        }
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          (!isMissingRaceNightsTableError(error.message) &&
+            !isSupabaseAuthSessionError(error.message))
+        ) {
+          console.warn("Unable to merge shared checklist before saving race night.", error);
+        }
+      }
+    }
+
     const nextStatus = nextRaceNight.status;
     const relatedEventId = nextRaceNight.eventId;
 
@@ -2529,17 +3256,44 @@ export const useAppStore = create<AppState>((set, get) => ({
     await persistRaceNightsLocally(nextRaceNights);
     set({ raceNights: nextRaceNights });
 
-    const teamId = get().teamId;
-
     if (isSupabaseConfigured && teamId) {
       try {
         await upsertRaceNightForTeam(teamId, nextRaceNight);
       } catch (error) {
-        if (!(error instanceof Error) || !isMissingRaceNightsTableError(error.message)) {
-          console.warn("Unable to sync race night changes. Keeping local changes only.", error);
+        if (error instanceof Error && isMissingRaceNightsTableError(error.message)) {
+          console.warn("Race night sync table is unavailable. Keeping local changes only.", error);
+          return;
         }
+
+        console.warn("Unable to sync race night changes. Keeping local changes only.", error);
+        throw error;
       }
     }
+  },
+  refreshRaceNight: async (raceNightId) => {
+    const teamId = get().teamId;
+
+    if (!isSupabaseConfigured || !teamId) {
+      return;
+    }
+
+    const remoteRaceNight = await loadRaceNightForTeam(teamId, raceNightId);
+
+    if (!remoteRaceNight) {
+      return;
+    }
+
+    const currentRaceNights = get().raceNights;
+    const localRaceNight = currentRaceNights.find((raceNight) => raceNight.id === raceNightId);
+    const nextRaceNight = localRaceNight
+      ? mergeRaceNightChecklistForSync(localRaceNight, remoteRaceNight)
+      : remoteRaceNight;
+    const nextRaceNights = localRaceNight
+      ? currentRaceNights.map((raceNight) => (raceNight.id === raceNightId ? nextRaceNight : raceNight))
+      : [nextRaceNight, ...currentRaceNights];
+
+    await persistRaceNightsLocally(nextRaceNights);
+    set({ raceNights: nextRaceNights });
   },
   deleteRaceNight: async (raceNightId) => {
     const nextRaceNights = get().raceNights.filter((raceNight) => raceNight.id !== raceNightId);
@@ -2571,22 +3325,35 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       stopRaceNightSyncLoop();
       await clearAuthSnapshot();
+      await AsyncStorage.setItem(STORAGE_KEYS.raceEvents, JSON.stringify(emptyRaceEvents));
+      await persistRaceNightsLocally(emptyRaceNights);
 
       set({
         isPasswordRecovery: false,
         inviteLinkEmail: undefined,
         inviteLinkToken: undefined,
         inviteLinkTeamName: undefined,
+        shouldOpenSettingsAfterTeamCreate: false,
+        userId: undefined,
         teamId: undefined,
+      currentTeamRole: undefined,
       teamName: undefined,
       userName: undefined,
       userEmail: undefined,
+      driverName: undefined,
+      crewChiefName: undefined,
       racingType: undefined,
       raceCarType: undefined,
+      carClass: undefined,
+      engineType: undefined,
+      fuelType: undefined,
+      carburetorType: undefined,
       isTeamOwner: false,
       teamMembers: [],
       pendingInvites: [],
       raceEvents: [],
+      raceNights: [],
+      isReplayingHomeTutorial: false,
     });
   },
 }));

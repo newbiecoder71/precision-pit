@@ -5,6 +5,8 @@ import KeyboardScreen from "../components/KeyboardScreen";
 import { colors } from "../theme";
 import { useAppStore } from "../store/useAppStore";
 
+const androidInstallUrl = process.env.EXPO_PUBLIC_ANDROID_INSTALL_URL?.trim() ?? "";
+
 export default function InviteMemberScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -30,12 +32,19 @@ export default function InviteMemberScreen({ navigation }: any) {
       });
 
       if (deliveryMethod === "text" && result.inviteLink) {
-        const message = `Join ${teamName || "the team"} in Precision Pit: ${result.inviteLink}`;
+        const message = androidInstallUrl
+          ? `You've been invited to join ${teamName || "the team"} on Precision Pit.\nInstall the app: ${androidInstallUrl}\nThen join your team: ${result.inviteLink}`
+          : `You've been invited to join ${teamName || "the team"} on Precision Pit.\nJoin your team here: ${result.inviteLink}`;
         const separator = Platform.OS === "ios" ? "&" : "?";
         const smsUrl = `sms:${phoneNumber}${separator}body=${encodeURIComponent(message)}`;
         await Linking.openURL(smsUrl);
 
-        Alert.alert("Text ready", "Your text message app opened with the team join link.");
+        Alert.alert(
+          "Text ready",
+          androidInstallUrl
+            ? "Your text message app opened with the app install link and team join link."
+            : "Your text message app opened with the team join link.",
+        );
         navigation.goBack();
         return;
       }

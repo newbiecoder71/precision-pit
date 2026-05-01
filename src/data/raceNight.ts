@@ -2,6 +2,7 @@ export type RaceNightChecklistItem = {
   id: string;
   label: string;
   checked: boolean;
+  checkedByName?: string;
 };
 
 export type RaceNightChecklistSection = {

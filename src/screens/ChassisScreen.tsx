@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
 import {
@@ -10,6 +10,10 @@ import {
 import { colors, spacing } from "../theme";
 import { ChassisSetup, useAppStore } from "../store/useAppStore";
 import { calculateEstimatedScaleEffect } from "../utils/estimatedScaleEffect";
+import {
+  normalizeFractionMeasurementInput,
+  sanitizeFractionMeasurementInput,
+} from "../utils/measurementInputs";
 import { calculateScalePercentages } from "../utils/scales";
 
 type ChassisFieldKey = keyof ChassisSetup;
@@ -26,26 +30,58 @@ const rideHeightFields: NumericField[] = [
   {
     key: "rideHeightLf",
     label: "LF Ride Height",
-    placeholder: "5.75",
+    placeholder: "5 3/4",
     reference: "Common dirt-oval baselines are often tracked in inches at each corner.",
   },
   {
     key: "rideHeightRf",
     label: "RF Ride Height",
-    placeholder: "5.50",
+    placeholder: "5 1/2",
     reference: "Track RF lower than LF only if that matches your chassis package baseline.",
   },
   {
     key: "rideHeightLr",
     label: "LR Ride Height",
-    placeholder: "6.25",
+    placeholder: "6 1/4",
     reference: "Rear ride heights are usually recorded by corner, not as one combined note.",
   },
   {
     key: "rideHeightRr",
     label: "RR Ride Height",
-    placeholder: "6.00",
+    placeholder: "6",
     reference: "Use decimals so your team can keep quarter-inch style adjustments organized.",
+  },
+];
+
+const wingSprintFields: Array<{
+  key: ChassisDataFieldKey;
+  label: string;
+  placeholder: string;
+  reference: string;
+}> = [
+  {
+    key: "topWingAngle",
+    label: "Top Wing Angle",
+    placeholder: "12",
+    reference: "Record the wing angle setting your team actually runs so changes stay comparable race to race.",
+  },
+  {
+    key: "sliderPosition",
+    label: "Slider Position",
+    placeholder: "4 in back",
+    reference: "Use the same unit every time, such as inches back or hole position, so your notes stay usable.",
+  },
+  {
+    key: "wickerBillSize",
+    label: "Wicker Bill Size",
+    placeholder: "2 in",
+    reference: "Capture the wicker bill height or size that was installed on the top wing.",
+  },
+  {
+    key: "noseWingAngle",
+    label: "Nose Wing Angle",
+    placeholder: "6",
+    reference: "Log the nose wing angle with the same convention your team uses in the shop.",
   },
 ];
 
@@ -157,11 +193,14 @@ function sanitizeDecimalInput(value: string) {
 
 export default function ChassisScreen() {
   const chassisSetup = useAppStore((state) => state.chassisSetup);
+  const raceCarType = useAppStore((state) => state.raceCarType);
+  const carClass = useAppStore((state) => state.carClass);
   const saveChassisSetup = useAppStore((state) => state.saveChassisSetup);
   const [draftSetup, setDraftSetup] = useState<ChassisSetup>(chassisSetup);
   const [showBuilderMenu, setShowBuilderMenu] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     rideHeights: false,
+    wingSetup: false,
     weightPercentages: false,
     adjustmentModel: false,
     notes: false,
@@ -224,6 +263,20 @@ export default function ChassisScreen() {
     }));
   };
 
+  const handleFractionMeasurementChange = (key: ChassisFieldKey, value: string) => {
+    setDraftSetup((current) => ({
+      ...current,
+      [key]: sanitizeFractionMeasurementInput(value),
+    }));
+  };
+
+  const handleFractionMeasurementBlur = (key: ChassisFieldKey) => {
+    setDraftSetup((current) => ({
+      ...current,
+      [key]: normalizeFractionMeasurementInput(current[key]),
+    }));
+  };
+
   const handleBuilderSelect = (builder: string) => {
     setDraftSetup((current) => ({
       ...current,
@@ -266,6 +319,8 @@ export default function ChassisScreen() {
       }),
     [draftSetup],
   );
+  const isWingSprintCar =
+    raceCarType === "Sprint Car" && (carClass?.trim().startsWith("Wing Sprint") ?? false);
 
   return (
     <KeyboardScreen contentContainerStyle={styles.container}>
@@ -333,26 +388,70 @@ export default function ChassisScreen() {
         </Pressable>
         {expandedSections.rideHeights ? (
           <>
-            <Text style={styles.sectionBody}>
-              Track each corner separately so your baseline is measurable and repeatable.
-            </Text>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.sectionBody}>
+                Track each corner separately so your baseline is measurable and repeatable.
+              </Text>
+            </Pressable>
 
             <View style={styles.grid}>
               {rideHeightFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
-                  <Text style={styles.label}>{field.label}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.label}>{field.label}</Text>
+                  </Pressable>
                   <TextInput
                     value={draftSetup[field.key]}
-                    onChangeText={(value) => handleNumericChange(field.key, value)}
+                    onChangeText={(value) => handleFractionMeasurementChange(field.key, value)}
+                    onBlur={() => handleFractionMeasurementBlur(field.key)}
                     placeholder={getBuilderPlaceholder(field.key as keyof typeof builderBaseline, field.placeholder)}
                     placeholderTextColor="#5E7B94"
-                    keyboardType="decimal-pad"
+                    keyboardType="numbers-and-punctuation"
                     style={styles.input}
                   />
                   <Text style={styles.reference}>{field.reference}</Text>
                 </View>
               ))}
             </View>
+          </>
+        ) : null}
+
+        {isWingSprintCar ? (
+          <>
+            <Pressable
+              onPress={() =>
+                setExpandedSections((current) => ({
+                  ...current,
+                  wingSetup: !current.wingSetup,
+                }))
+              }
+              style={styles.sectionHeader}
+            >
+              <Text style={styles.sectionTitle}>Wing Setup</Text>
+              <Text style={styles.sectionArrow}>{expandedSections.wingSetup ? "▲" : "▼"}</Text>
+            </Pressable>
+            {expandedSections.wingSetup ? (
+              <>
+                <Text style={styles.sectionBody}>
+                  Save the key wing settings here for your baseline winged sprint package.
+                </Text>
+                <View style={styles.grid}>
+                  {wingSprintFields.map((field) => (
+                    <View key={field.key} style={styles.gridField}>
+                      <Text style={styles.label}>{field.label}</Text>
+                      <TextInput
+                        value={draftSetup[field.key]}
+                        onChangeText={(value) => handleTextChange(field.key, value)}
+                        placeholder={field.placeholder}
+                        placeholderTextColor="#5E7B94"
+                        style={styles.input}
+                      />
+                      <Text style={styles.reference}>{field.reference}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : null}
           </>
         ) : null}
 

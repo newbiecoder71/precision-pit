@@ -11,14 +11,14 @@ const TextInputComponent = TextInput as typeof TextInput & {
 
 TextComponent.defaultProps = {
   ...(TextComponent.defaultProps || {}),
-  allowFontScaling: true,
-  maxFontSizeMultiplier: 1.15,
+  allowFontScaling: false,
+  maxFontSizeMultiplier: 1,
 };
 
 TextInputComponent.defaultProps = {
   ...(TextInputComponent.defaultProps || {}),
-  allowFontScaling: true,
-  maxFontSizeMultiplier: 1.15,
+  allowFontScaling: false,
+  maxFontSizeMultiplier: 1,
 };
 
 export default function App() {

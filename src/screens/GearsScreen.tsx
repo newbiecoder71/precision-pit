@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   Image,
+  Keyboard,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -17,16 +19,23 @@ function sanitizeNumberInput(value: string) {
   return value.replace(/[^0-9.]/g, "");
 }
 
+const quickChangeGearOptions = Array.from({ length: 25 }, (_, index) => `${18 + index}`);
+
 export default function GearsScreen() {
   const { userName, gearInventory, addGearInventoryItem, deleteGearInventoryItem } = useAppStore();
   const [label, setLabel] = useState("");
   const [ringTeeth, setRingTeeth] = useState("");
   const [pinionTeeth, setPinionTeeth] = useState("");
+  const [quickChangeTopTeeth, setQuickChangeTopTeeth] = useState("");
+  const [quickChangeBottomTeeth, setQuickChangeBottomTeeth] = useState("");
   const [notes, setNotes] = useState("");
+  const [activeQuickChangeField, setActiveQuickChangeField] = useState<
+    "quickChangeTopTeeth" | "quickChangeBottomTeeth" | null
+  >(null);
 
   const previewRatio = useMemo(() => {
-    return calculateGearRatio(ringTeeth, pinionTeeth);
-  }, [pinionTeeth, ringTeeth]);
+    return calculateGearRatio(ringTeeth, pinionTeeth, quickChangeTopTeeth, quickChangeBottomTeeth);
+  }, [pinionTeeth, quickChangeBottomTeeth, quickChangeTopTeeth, ringTeeth]);
 
   const handleAddGear = async () => {
     try {
@@ -34,12 +43,16 @@ export default function GearsScreen() {
         label,
         ringTeeth,
         pinionTeeth,
+        quickChangeTopTeeth,
+        quickChangeBottomTeeth,
         notes,
       });
 
       setLabel("");
       setRingTeeth("");
       setPinionTeeth("");
+      setQuickChangeTopTeeth("");
+      setQuickChangeBottomTeeth("");
       setNotes("");
       Alert.alert("Saved", "Gear inventory item added.");
     } catch (error) {
@@ -63,60 +76,111 @@ export default function GearsScreen() {
 
   return (
     <KeyboardScreen contentContainerStyle={styles.container}>
-      <Image
-        source={require("../../assets/icons/gears.png")}
-        style={styles.bannerImage}
-        resizeMode="contain"
-      />
-      <Text style={styles.p}>
-        {userName
-          ? `Welcome, ${userName}! Build your gear inventory here so ratios are ready when race night starts.`
-          : "Build your gear inventory here so ratios are ready when race night starts."}
-      </Text>
+      <Pressable onPress={Keyboard.dismiss}>
+        <Image
+          source={require("../../assets/icons/gears.png")}
+          style={styles.bannerImage}
+          resizeMode="contain"
+        />
+      </Pressable>
+      <Pressable onPress={Keyboard.dismiss}>
+        <Text style={styles.p}>
+          {userName
+            ? `Welcome, ${userName}! Build your gear inventory here so ratios are ready when race night starts.`
+            : "Build your gear inventory here so ratios are ready when race night starts."}
+        </Text>
+      </Pressable>
 
       <View style={styles.card}>
-        <Text style={styles.sectionLabel}>Add Gear Set</Text>
-
-        <Text style={styles.label}>Gear Label</Text>
+        <Pressable onPress={Keyboard.dismiss}>
+          <Text style={styles.label}>Gear Label</Text>
+        </Pressable>
         <TextInput
           style={styles.input}
-          placeholder="4.86 quick-change set"
+          placeholder="4.86 feature set"
           placeholderTextColor="#4F7390"
           value={label}
           onChangeText={setLabel}
         />
 
-        <View style={styles.grid}>
-          <View style={styles.gridField}>
+        <View style={styles.stackField}>
+          <Pressable onPress={Keyboard.dismiss}>
             <Text style={styles.label}>Ring Teeth</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="34"
-              placeholderTextColor="#4F7390"
-              value={ringTeeth}
-              onChangeText={(value) => setRingTeeth(sanitizeNumberInput(value))}
-              keyboardType="number-pad"
-            />
+          </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="34"
+            placeholderTextColor="#4F7390"
+            value={ringTeeth}
+            onChangeText={(value) => setRingTeeth(sanitizeNumberInput(value))}
+            keyboardType="number-pad"
+          />
+        </View>
+
+        <View style={styles.stackField}>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Pinion Teeth</Text>
+          </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="7"
+            placeholderTextColor="#4F7390"
+            value={pinionTeeth}
+            onChangeText={(value) => setPinionTeeth(sanitizeNumberInput(value))}
+            keyboardType="number-pad"
+          />
+        </View>
+
+        <View style={styles.quickChangeRow}>
+          <View style={styles.quickChangeField}>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.quickChangeLabel}>Top Quick-Change Gear</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Keyboard.dismiss();
+                setActiveQuickChangeField("quickChangeTopTeeth");
+              }}
+              style={[styles.input, styles.quickChangeButton]}
+            >
+              <Text style={quickChangeTopTeeth ? styles.inputValue : styles.inputPlaceholder}>
+                {quickChangeTopTeeth || "Select"}
+              </Text>
+            </Pressable>
           </View>
 
-          <View style={styles.gridField}>
-            <Text style={styles.label}>Pinion Teeth</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="7"
-              placeholderTextColor="#4F7390"
-              value={pinionTeeth}
-              onChangeText={(value) => setPinionTeeth(sanitizeNumberInput(value))}
-              keyboardType="number-pad"
-            />
+          <View style={styles.quickChangeField}>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.quickChangeLabel}>Bottom Quick-Change Gear</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Keyboard.dismiss();
+                setActiveQuickChangeField("quickChangeBottomTeeth");
+              }}
+              style={[styles.input, styles.quickChangeButton]}
+            >
+              <Text style={quickChangeBottomTeeth ? styles.inputValue : styles.inputPlaceholder}>
+                {quickChangeBottomTeeth || "Select"}
+              </Text>
+            </Pressable>
           </View>
         </View>
 
-        <Text style={styles.previewText}>
-          {`Calculated Ratio: ${formatGearRatio(previewRatio)}`}
-        </Text>
+        <Pressable onPress={Keyboard.dismiss}>
+          <Text style={styles.previewText}>
+            {`Final Drive Ratio: ${formatGearRatio(previewRatio)}`}
+          </Text>
+        </Pressable>
+        <Pressable onPress={Keyboard.dismiss}>
+          <Text style={styles.previewHint}>
+            Ring/pinion ratio multiplied by top quick-change gear divided by bottom quick-change gear
+          </Text>
+        </Pressable>
 
-        <Text style={styles.label}>Notes</Text>
+        <Pressable onPress={Keyboard.dismiss}>
+          <Text style={styles.label}>Notes</Text>
+        </Pressable>
         <TextInput
           style={[styles.input, styles.notesInput]}
           placeholder="Track size, driver preference, rear-end notes..."
@@ -127,25 +191,36 @@ export default function GearsScreen() {
           textAlignVertical="top"
         />
 
-        <Pressable onPress={handleAddGear} style={styles.button}>
+        <Pressable
+          onPress={() => {
+            Keyboard.dismiss();
+            void handleAddGear();
+          }}
+          style={styles.button}
+        >
           <Text style={styles.buttonText}>Add Gear To Inventory</Text>
         </Pressable>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionLabel}>Gear Inventory</Text>
+        <Pressable onPress={Keyboard.dismiss}>
+          <Text style={styles.sectionLabel}>Gear Inventory</Text>
+        </Pressable>
         {gearInventory.length ? (
           gearInventory.map((gear) => (
             <View key={gear.id} style={styles.inventoryRow}>
               <View style={styles.inventoryCopy}>
                 <Text style={styles.inventoryTitle}>{gear.label}</Text>
                 <Text style={styles.inventoryMeta}>
-                  Ring {gear.ringTeeth} | Pinion {gear.pinionTeeth} | Ratio {gear.ratio || "-"}
+                  Ring {gear.ringTeeth} | Pinion {gear.pinionTeeth} | Top {gear.quickChangeTopTeeth} | Bottom {gear.quickChangeBottomTeeth} | Ratio {gear.ratio || "-"}
                 </Text>
                 {gear.notes ? <Text style={styles.inventoryNotes}>{gear.notes}</Text> : null}
               </View>
               <Pressable
-                onPress={() => handleDeleteGear(gear.id, gear.label)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  handleDeleteGear(gear.id, gear.label);
+                }}
                 style={styles.deleteChip}
               >
                 <Text style={styles.deleteChipText}>X</Text>
@@ -153,11 +228,51 @@ export default function GearsScreen() {
             </View>
           ))
         ) : (
-          <Text style={styles.emptyText}>
-            No gears saved yet. Add a few quick-change sets here to start building inventory.
-          </Text>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.emptyText}>
+              No gears saved yet. Add a few quick-change sets here to start building inventory.
+            </Text>
+          </Pressable>
         )}
       </View>
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={activeQuickChangeField !== null}
+        onRequestClose={() => setActiveQuickChangeField(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {activeQuickChangeField === "quickChangeTopTeeth"
+                ? "Select Top Quick-Change Gear"
+                : "Select Bottom Quick-Change Gear"}
+            </Text>
+            <View style={styles.optionGrid}>
+              {quickChangeGearOptions.map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => {
+                    if (activeQuickChangeField === "quickChangeTopTeeth") {
+                      setQuickChangeTopTeeth(option);
+                    } else if (activeQuickChangeField === "quickChangeBottomTeeth") {
+                      setQuickChangeBottomTeeth(option);
+                    }
+                    setActiveQuickChangeField(null);
+                  }}
+                  style={styles.optionButton}
+                >
+                  <Text style={styles.optionButtonText}>{option}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable onPress={() => setActiveQuickChangeField(null)} style={styles.modalCloseButton}>
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardScreen>
   );
 }
@@ -208,11 +323,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textTransform: "uppercase",
   },
-  grid: {
-    flexDirection: "row",
-    gap: spacing(1.5),
+  quickChangeLabel: {
+    color: "#8ED4FF",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+    lineHeight: 16,
+    marginBottom: spacing(0.5),
+    textAlign: "center",
+    textTransform: "uppercase",
   },
-  gridField: {
+  stackField: {
+    width: "100%",
+  },
+  quickChangeRow: {
+    flexDirection: "row",
+    gap: spacing(1),
+    marginBottom: spacing(0.5),
+  },
+  quickChangeField: {
     flex: 1,
   },
   input: {
@@ -227,6 +356,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     textAlign: "center",
   },
+  quickChangeButton: {
+    justifyContent: "center",
+  },
+  inputValue: {
+    color: "#EAF7FF",
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  inputPlaceholder: {
+    color: "#4F7390",
+    fontSize: 15,
+    textAlign: "center",
+  },
   notesInput: {
     minHeight: 92,
     textAlign: "left",
@@ -235,6 +378,13 @@ const styles = StyleSheet.create({
     color: "#5AB3FF",
     fontSize: 12,
     fontWeight: "700",
+    marginBottom: spacing(1.25),
+    textAlign: "center",
+  },
+  previewHint: {
+    color: colors.subtext,
+    fontSize: 12,
+    lineHeight: 18,
     marginBottom: spacing(1.25),
     textAlign: "center",
   },
@@ -299,6 +449,61 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
   },
+  modalBackdrop: {
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    flex: 1,
+    justifyContent: "center",
+    padding: spacing(2),
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    maxWidth: 440,
+    padding: spacing(2),
+    width: "100%",
+  },
+  modalTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: spacing(1.25),
+    textAlign: "center",
+  },
+  optionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing(0.75),
+    justifyContent: "center",
+    marginBottom: spacing(1.5),
+  },
+  optionButton: {
+    alignItems: "center",
+    backgroundColor: "#102947",
+    borderColor: "#1E5B94",
+    borderRadius: 12,
+    borderWidth: 1,
+    minWidth: 58,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  optionButtonText: {
+    color: "#F3FAFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  modalCloseButton: {
+    alignItems: "center",
+    borderColor: "#5AB3FF",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingVertical: 12,
+  },
+  modalCloseButtonText: {
+    color: "#5AB3FF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
 });
-
-

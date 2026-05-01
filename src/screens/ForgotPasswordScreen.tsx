@@ -38,7 +38,11 @@ export default function ForgotPasswordScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 96 : 24}
         >
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardDismissMode="none"
+            keyboardShouldPersistTaps="always"
+          >
             <Text style={styles.title}>Forgot password</Text>
             <Text style={styles.body}>
               Enter the email address on your account and Precision Pit will send you a reset

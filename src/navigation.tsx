@@ -37,6 +37,7 @@ import EventDetailScreen from "./screens/EventDetailScreen";
 import PastRacesScreen from "./screens/PastRacesScreen";
 import PreviousTracksScreen from "./screens/PreviousTracksScreen";
 import RaceNightScreen from "./screens/RaceNightScreen";
+import RaceNightPrintScreen from "./screens/RaceNightPrintScreen";
 import RaceNightSetupChangesScreen from "./screens/RaceNightSetupChangesScreen";
 import TracksScreen from "./screens/TracksScreen";
 import PrivacyScreen from "./screens/PrivacyScreen";
@@ -63,6 +64,30 @@ const iconMap: Record<string, any> = {
 const stackHeaderStyle = {
   backgroundColor: colors.bg,
 };
+
+function buildStackOptions(title: string, backLabel = "Back") {
+  return ({ navigation }: any) => ({
+    headerShown: true,
+    title: "",
+    headerTitle: "",
+    headerStyle: stackHeaderStyle,
+    headerTintColor: colors.text,
+    headerTitleAlign: "center" as const,
+    headerBackTitle: "Back",
+    headerBackVisible: false,
+    headerLeft: () => (
+      <Pressable
+        accessibilityLabel="Back"
+        hitSlop={10}
+        onPress={() => navigation.goBack()}
+        style={styles.headerBackButton}
+      >
+        <Ionicons name="arrow-back" size={22} color={colors.text} />
+        <Text style={styles.headerBackLabel}>Back</Text>
+      </Pressable>
+    ),
+  });
+}
 
 const navigationTheme = {
   ...DarkTheme,
@@ -201,143 +226,80 @@ function SignedInStack() {
       <Stack.Screen
         name="AccountProfile"
         component={AccountScreen}
-        options={{
-          headerShown: true,
-          title: "Account",
+        options={({ navigation }: any) => ({
+          ...buildStackOptions("Account", "Home")({ navigation }),
           animation: "slide_from_right",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        })}
       />
       <Stack.Screen
         name="TeamMembers"
         component={TeamMembersScreen}
-        options={{
-          headerShown: true,
-          title: "Team Members",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Team Members", "Account")}
       />
       <Stack.Screen
         name="InviteMember"
         component={InviteMemberScreen}
-        options={{
-          headerShown: true,
-          title: "Invite Member",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Invite Member", "Team Members")}
       />
       <Stack.Screen
         name="SavedTracks"
         component={SavedTracksScreen}
-        options={{
-          headerShown: true,
-          title: "Saved Tracks",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Saved Tracks", "Account")}
       />
       <Stack.Screen
         name="Chassis"
         component={ChassisScreen}
-        options={{
-          headerShown: true,
-          title: "Chassis",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Chassis", "Setups")}
       />
       <Stack.Screen
         name="EventDetail"
         component={EventDetailScreen}
-        options={{
-          headerShown: true,
-          title: "Event Detail",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Event Detail", "Events")}
       />
       <Stack.Screen
         name="RaceNight"
         component={RaceNightScreen}
-        options={{
-          headerShown: true,
-          title: "Race Night",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Race Night")}
+      />
+      <Stack.Screen
+        name="RaceNightPrint"
+        component={RaceNightPrintScreen}
+        options={buildStackOptions("Print Race Night", "Past Races")}
       />
       <Stack.Screen
         name="RaceNightSetupChanges"
         component={RaceNightSetupChangesScreen}
-        options={{
-          headerShown: true,
-          title: "Setup Changes",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Setup Changes", "Race Night")}
       />
       <Stack.Screen
         name="PreviousTracks"
         component={PreviousTracksScreen}
-        options={{
-          headerShown: true,
-          title: "Previously Raced Tracks",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Previously Raced Tracks", "Tracks")}
       />
       <Stack.Screen
         name="PastRaces"
         component={PastRacesScreen}
-        options={{
-          headerShown: true,
-          title: "Past Races",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Past Races")}
       />
       <Stack.Screen
         name="Tracks"
         component={TracksScreen}
-        options={{
-          headerShown: true,
-          title: "Tracks",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Tracks")}
       />
       <Stack.Screen
         name="Privacy"
         component={PrivacyScreen}
-        options={{
-          headerShown: true,
-          title: "Privacy",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Privacy", "Home")}
       />
       <Stack.Screen
         name="Support"
         component={SupportScreen}
-        options={{
-          headerShown: true,
-          title: "Support",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Support", "Home")}
       />
       <Stack.Screen
         name="Terms"
         component={TermsScreen}
-        options={{
-          headerShown: true,
-          title: "Terms & Conditions",
-          headerStyle: stackHeaderStyle,
-          headerTintColor: colors.text,
-        }}
+        options={buildStackOptions("Terms & Conditions", "Support")}
       />
     </Stack.Navigator>
   );
@@ -533,5 +495,16 @@ const styles = StyleSheet.create({
     right: 14,
     width: 50,
     zIndex: 20,
+  },
+  headerBackButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+    paddingVertical: 4,
+  },
+  headerBackLabel: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

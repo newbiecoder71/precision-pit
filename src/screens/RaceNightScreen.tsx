@@ -1,7 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput as RNTextInput, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import TextInput from "../components/AppTextInput";
+import AppPressable from "../components/AppPressable";
 import KeyboardScreen from "../components/KeyboardScreen";
 import {
   ChassisSetup,
@@ -16,9 +19,13 @@ import {
   useAppStore,
 } from "../store/useAppStore";
 import { colors, spacing } from "../theme";
-import { formatStoredDateValue } from "../utils/date";
+import { formatStoredDateValue, getDateSortValue } from "../utils/date";
 import { calculateGearRatio, formatGearRatio } from "../utils/gears";
 import { calculateEstimatedScaleEffect } from "../utils/estimatedScaleEffect";
+import {
+  normalizeFractionMeasurementInput,
+  sanitizeFractionMeasurementInput,
+} from "../utils/measurementInputs";
 import { calculateScalePercentages } from "../utils/scales";
 import { calculateStaggerValue, formatMeasurementValue } from "../utils/tireMeasurements";
 
@@ -70,11 +77,39 @@ type ChassisFieldKey = keyof ChassisSetup;
 type TireFieldKey = keyof TireSetup;
 type SuspensionFieldKey = keyof SuspensionSetup;
 
-const raceNightChassisFields: Array<{ key: ChassisFieldKey; label: string; placeholder: string }> = [
-  { key: "rideHeightLf", label: "LF Ride Height", placeholder: "5.75" },
-  { key: "rideHeightRf", label: "RF Ride Height", placeholder: "5.50" },
-  { key: "rideHeightLr", label: "LR Ride Height", placeholder: "6.25" },
-  { key: "rideHeightRr", label: "RR Ride Height", placeholder: "6.00" },
+const raceNightChassisFields: Array<{
+  key: ChassisFieldKey;
+  label: string;
+  placeholder: string;
+  keyboardType?: "numbers-and-punctuation";
+}> = [
+  { key: "rideHeightLf", label: "LF Ride Height", placeholder: "5 3/4", keyboardType: "numbers-and-punctuation" },
+  { key: "rideHeightRf", label: "RF Ride Height", placeholder: "5 1/2", keyboardType: "numbers-and-punctuation" },
+  { key: "rideHeightLr", label: "LR Ride Height", placeholder: "6 1/4", keyboardType: "numbers-and-punctuation" },
+  { key: "rideHeightRr", label: "RR Ride Height", placeholder: "6", keyboardType: "numbers-and-punctuation" },
+];
+
+const raceNightWheelOffsetFields: Array<{
+  key: TireFieldKey;
+  label: string;
+  placeholder: string;
+  keyboardType?: "numbers-and-punctuation";
+}> = [
+  { key: "lfWheelOffset", label: "LF Wheel Offset", placeholder: "2", keyboardType: "numbers-and-punctuation" },
+  { key: "rfWheelOffset", label: "RF Wheel Offset", placeholder: "3", keyboardType: "numbers-and-punctuation" },
+  { key: "lrWheelOffset", label: "LR Wheel Offset", placeholder: "4", keyboardType: "numbers-and-punctuation" },
+  { key: "rrWheelOffset", label: "RR Wheel Offset", placeholder: "4", keyboardType: "numbers-and-punctuation" },
+];
+
+const raceNightWingSprintFields: Array<{
+  key: ChassisFieldKey;
+  label: string;
+  placeholder: string;
+}> = [
+  { key: "topWingAngle", label: "Top Wing Angle", placeholder: "12" },
+  { key: "sliderPosition", label: "Slider Position", placeholder: "4 in back" },
+  { key: "wickerBillSize", label: "Wicker Bill Size", placeholder: "2 in" },
+  { key: "noseWingAngle", label: "Nose Wing Angle", placeholder: "6" },
 ];
 
 const raceNightScaleWeightFields: Array<{ key: ChassisFieldKey; label: string; placeholder: string }> = [
@@ -133,6 +168,37 @@ const raceNightTireFields: Array<{
   { key: "rrPressure", label: "RR Pressure", placeholder: "11", keyboardType: "decimal-pad" },
 ];
 
+const raceNightTireTempCorners = [
+  {
+    id: "lf",
+    label: "LF",
+    innerKey: "lfTempInner",
+    middleKey: "lfTempMiddle",
+    outerKey: "lfTempOuter",
+  },
+  {
+    id: "rf",
+    label: "RF",
+    innerKey: "rfTempInner",
+    middleKey: "rfTempMiddle",
+    outerKey: "rfTempOuter",
+  },
+  {
+    id: "lr",
+    label: "LR",
+    innerKey: "lrTempInner",
+    middleKey: "lrTempMiddle",
+    outerKey: "lrTempOuter",
+  },
+  {
+    id: "rr",
+    label: "RR",
+    innerKey: "rrTempInner",
+    middleKey: "rrTempMiddle",
+    outerKey: "rrTempOuter",
+  },
+] as const;
+
 const circumferenceWholeNumberOptions = Array.from({ length: 13 }, (_, index) => `${84 + index}`);
 const circumferenceFractionOptions = ["0", "1/8", "1/4", "3/8", "1/2", "5/8", "3/4", "7/8"] as const;
 type RaceNightTireCircumferenceFieldKey =
@@ -147,7 +213,7 @@ const raceNightSectionTabs = [
   { id: "checklist", label: "Checklist" },
   { id: "setups", label: "Setups" },
   { id: "lapTimes", label: "Lap Times" },
-  { id: "results", label: "Results" },
+  { id: "results", label: "Positions" },
 ] as const;
 
 const raceNightSetupTabs = [
@@ -157,6 +223,89 @@ const raceNightSetupTabs = [
   { id: "rearSuspension", label: "Rear Suspension" },
   { id: "gears", label: "Gears" },
 ] as const;
+
+function getTotalLapsTooltipLabel(stageKey: RaceNightStageKey) {
+  if (stageKey === "bFeature") {
+    return "If B-Feature, Enter Total Laps";
+  }
+
+  return "Enter Total Laps";
+}
+
+function getStopwatchStageLabel(stageKey: RaceNightStageKey) {
+  if (stageKey === "heat") {
+    return "Heat Race";
+  }
+
+  return raceNightStageLabels[stageKey];
+}
+
+function getFirstName(value?: string) {
+  return value?.trim().split(/\s+/)[0] || undefined;
+}
+
+function formatAverageTireTemp(values: string[]) {
+  const numericValues = values
+    .map((value) => Number.parseFloat(value))
+    .filter((value) => Number.isFinite(value));
+
+  if (!numericValues.length) {
+    return "-";
+  }
+
+  const average = numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length;
+  return Number.isInteger(average) ? `${average}` : average.toFixed(1);
+}
+
+function mergeChecklistSectionsForDisplay(
+  currentSections: RaceNightStageData["checklistSections"],
+  sharedSections: RaceNightStageData["checklistSections"],
+) {
+  const currentSectionMap = new Map(currentSections.map((section) => [section.id, section]));
+
+  return sharedSections.map((sharedSection) => {
+    const currentSection = currentSectionMap.get(sharedSection.id);
+    const currentItemMap = new Map((currentSection?.items ?? []).map((item) => [item.id, item]));
+
+    return {
+      ...sharedSection,
+      items: sharedSection.items.map((sharedItem) => {
+        const currentItem = currentItemMap.get(sharedItem.id);
+        const checked = currentItem ? currentItem.checked : sharedItem.checked;
+        const checkedByName = checked
+          ? currentItem
+            ? currentItem.checkedByName
+            : sharedItem.checkedByName
+          : undefined;
+
+        return {
+          ...sharedItem,
+          checked,
+          checkedByName,
+        };
+      }),
+    };
+  });
+}
+
+function mergeRaceNightChecklistForDisplay(currentRaceNight: RaceNight, sharedRaceNight: RaceNight) {
+  const nextStageSessions = { ...currentRaceNight.stageSessions };
+
+  raceNightStageOrder.forEach((stageKey) => {
+    nextStageSessions[stageKey] = {
+      ...nextStageSessions[stageKey],
+      checklistSections: mergeChecklistSectionsForDisplay(
+        currentRaceNight.stageSessions[stageKey].checklistSections,
+        sharedRaceNight.stageSessions[stageKey].checklistSections,
+      ),
+    };
+  });
+
+  return {
+    ...currentRaceNight,
+    stageSessions: nextStageSessions,
+  };
+}
 
 const raceNightFrontSuspensionFields: Array<{ key: SuspensionFieldKey; label: string; placeholder: string; multiline?: boolean }> = [
   { key: "frontSprings", label: "Front Springs", placeholder: "LF 550 / RF 600" },
@@ -179,14 +328,29 @@ const raceNightRearSuspensionFields: Array<{ key: SuspensionFieldKey; label: str
 const raceNightGearFields: Array<{ key: keyof GearSetup; label: string; placeholder: string; halfWidth?: boolean }> = [
   { key: "ringTeeth", label: "Ring Teeth", placeholder: "34", halfWidth: true },
   { key: "pinionTeeth", label: "Pinion Teeth", placeholder: "7", halfWidth: true },
+  { key: "quickChangeTopTeeth", label: "Top Quick-Change Gear", placeholder: "25", halfWidth: true },
+  { key: "quickChangeBottomTeeth", label: "Bottom Quick-Change Gear", placeholder: "21", halfWidth: true },
   { key: "notes", label: "Gear Notes", placeholder: "Installed 5.14 quick-change for tacky surface...", halfWidth: false },
 ];
 
 export default function RaceNightScreen({ navigation, route }: any) {
+  const keyboardScrollRef = React.useRef<KeyboardAwareScrollView>(null);
+  const totalLapsInputRef = React.useRef<RNTextInput>(null);
+  const pinnedTabsVisibleRef = React.useRef(false);
+  const isUserScrollingRef = React.useRef(false);
+  const lastUserScrollAtRef = React.useRef(0);
+  const recentLocalEditUntilRef = React.useRef(0);
   const insets = useSafeAreaInsets();
   const raceNightId = route.params?.raceNightId as string;
+  const isTeamOwner = useAppStore((state) => state.isTeamOwner);
+  const userId = useAppStore((state) => state.userId);
+  const userName = useAppStore((state) => state.userName);
+  const userEmail = useAppStore((state) => state.userEmail);
+  const teamMembers = useAppStore((state) => state.teamMembers);
   const raceNights = useAppStore((state) => state.raceNights);
   const saveRaceNight = useAppStore((state) => state.saveRaceNight);
+  const refreshRaceNight = useAppStore((state) => state.refreshRaceNight);
+  const updateRaceEventTitle = useAppStore((state) => state.updateRaceEventTitle);
   const raceNight = useMemo(
     () => raceNights.find((entry) => entry.id === raceNightId),
     [raceNightId, raceNights],
@@ -216,12 +380,66 @@ export default function RaceNightScreen({ navigation, route }: any) {
   const [selectedWholeNumber, setSelectedWholeNumber] = useState("");
   const [selectedFraction, setSelectedFraction] =
     useState<(typeof circumferenceFractionOptions)[number]>("0");
+  const [sectionContentAnchorY, setSectionContentAnchorY] = useState(0);
+  const [setupsSectionAnchorY, setSetupsSectionAnchorY] = useState(0);
+  const [totalLapsAnchorY, setTotalLapsAnchorY] = useState(0);
+  const [pinnedTabsVisible, setPinnedTabsVisible] = useState(false);
+  const [titleHeaderHeight, setTitleHeaderHeight] = useState(0);
+  const [pinnedHeaderHeight, setPinnedHeaderHeight] = useState(0);
+  const [pinnedStageTabsHeight, setPinnedStageTabsHeight] = useState(0);
+  const [inlineTabsHeaderHeight, setInlineTabsHeaderHeight] = useState(0);
+  const [inlineStageTabsHeight, setInlineStageTabsHeight] = useState(0);
+  const [pendingStageScrollKey, setPendingStageScrollKey] = useState<string>();
+  const [pendingSectionScrollTarget, setPendingSectionScrollTarget] =
+    useState<(typeof raceNightSectionTabs)[number]["id"] | null>(null);
+  const [totalLapsTooltipStage, setTotalLapsTooltipStage] = useState<RaceNightStageKey | null>(null);
+  const [focusedRaceNightInputCount, setFocusedRaceNightInputCount] = useState(0);
+  const [isTitleEditorVisible, setIsTitleEditorVisible] = useState(false);
+  const [editedRaceTitle, setEditedRaceTitle] = useState("");
+  const [isSavingRaceTitle, setIsSavingRaceTitle] = useState(false);
 
   const showRaceNightInstructions = () => {
     Alert.alert(
       "Race Night Tips",
       "Tap each race-stage tab as the night moves forward. The next stage starts with the prior stage's saved inputs, and you only edit what changed.",
     );
+  };
+
+  const openTitleEditor = () => {
+    setEditedRaceTitle(draftRaceNight?.eventTitle ?? "");
+    setIsTitleEditorVisible(true);
+  };
+
+  const handleSaveRaceTitle = async () => {
+    const trimmedTitle = editedRaceTitle.trim();
+
+    if (!draftRaceNight) {
+      return;
+    }
+
+    if (!trimmedTitle) {
+      Alert.alert("Title Required", "Enter a race title first.");
+      return;
+    }
+
+    try {
+      setIsSavingRaceTitle(true);
+      await updateRaceEventTitle(draftRaceNight.eventId, trimmedTitle);
+      setDraftRaceNight((current) =>
+        current
+          ? {
+              ...current,
+              eventTitle: trimmedTitle,
+            }
+          : current,
+      );
+      setIsTitleEditorVisible(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update the race title.";
+      Alert.alert("Save failed", message);
+    } finally {
+      setIsSavingRaceTitle(false);
+    }
   };
 
   useEffect(() => {
@@ -235,9 +453,11 @@ export default function RaceNightScreen({ navigation, route }: any) {
       bFeature: { isRunning: false, elapsedMs: 0, isCaution: false },
       aFeature: { isRunning: false, elapsedMs: 0, isCaution: false },
     });
+    setTotalLapsTooltipStage(null);
     setActiveCircumferenceField(null);
     setSelectedWholeNumber("");
     setSelectedFraction("0");
+    setPendingSectionScrollTarget(null);
   }, [raceNightId, raceNight?.id]);
 
   useEffect(() => {
@@ -283,6 +503,9 @@ export default function RaceNightScreen({ navigation, route }: any) {
   }
 
   const currentStage = draftRaceNight.stageSessions[activeStage];
+  const isWingSprintCar =
+    draftRaceNight.raceCarType === "Sprint Car" &&
+    (draftRaceNight.carClass?.trim().startsWith("Wing Sprint") ?? false);
   const hotLapsWeatherZipCode = draftRaceNight.stageSessions.hotLaps.weatherZipCode;
   const isHotLapsStage = activeStage === "hotLaps";
   const weatherActionLabel = isHotLapsStage ? "Auto Fill Weather" : "Refresh Weather";
@@ -290,7 +513,8 @@ export default function RaceNightScreen({ navigation, route }: any) {
   const isReadOnly = draftRaceNight.status === "completed";
   const isWeatherZipEditable = !isReadOnly && (isHotLapsStage || !isInheritedWeatherZipLocked);
   const isRaceDay = formatStoredDateValue(draftRaceNight.eventDate) === formatStoredDateValue(new Date().toISOString());
-  const isStageLockedForPreRace = !isReadOnly && !isHotLapsStage && !isRaceDay;
+  const isPastRace = getDateSortValue(draftRaceNight.eventDate) < getDateSortValue(formatStoredDateValue(new Date().toISOString()));
+  const isStageLockedForPreRace = !isReadOnly && !isHotLapsStage && !isRaceDay && !isPastRace;
   const isStageInputDisabled = isReadOnly || isStageLockedForPreRace;
   const activeLiveTimer = liveTimers[activeStage];
   const elapsedCurrentLapMs = activeLiveTimer.isRunning
@@ -335,14 +559,43 @@ export default function RaceNightScreen({ navigation, route }: any) {
     frontStaggerValue == null ? "-" : formatMeasurementValue(frontStaggerValue, "fraction");
   const rearStagger =
     rearStaggerValue == null ? "-" : formatMeasurementValue(rearStaggerValue, "fraction");
+  const tireTempAverages = useMemo(
+    () => ({
+      lf: formatAverageTireTemp([
+        currentStage.setupAdjustments.tires.lfTempInner,
+        currentStage.setupAdjustments.tires.lfTempMiddle,
+        currentStage.setupAdjustments.tires.lfTempOuter,
+      ]),
+      rf: formatAverageTireTemp([
+        currentStage.setupAdjustments.tires.rfTempInner,
+        currentStage.setupAdjustments.tires.rfTempMiddle,
+        currentStage.setupAdjustments.tires.rfTempOuter,
+      ]),
+      lr: formatAverageTireTemp([
+        currentStage.setupAdjustments.tires.lrTempInner,
+        currentStage.setupAdjustments.tires.lrTempMiddle,
+        currentStage.setupAdjustments.tires.lrTempOuter,
+      ]),
+      rr: formatAverageTireTemp([
+        currentStage.setupAdjustments.tires.rrTempInner,
+        currentStage.setupAdjustments.tires.rrTempMiddle,
+        currentStage.setupAdjustments.tires.rrTempOuter,
+      ]),
+    }),
+    [currentStage.setupAdjustments.tires],
+  );
   const gearRatioValue = useMemo(
     () =>
       calculateGearRatio(
         currentStage.setupAdjustments.gears.ringTeeth,
         currentStage.setupAdjustments.gears.pinionTeeth,
+        currentStage.setupAdjustments.gears.quickChangeTopTeeth,
+        currentStage.setupAdjustments.gears.quickChangeBottomTeeth,
       ),
     [
       currentStage.setupAdjustments.gears.pinionTeeth,
+      currentStage.setupAdjustments.gears.quickChangeBottomTeeth,
+      currentStage.setupAdjustments.gears.quickChangeTopTeeth,
       currentStage.setupAdjustments.gears.ringTeeth,
     ],
   );
@@ -378,6 +631,201 @@ export default function RaceNightScreen({ navigation, route }: any) {
 
     return JSON.stringify(draftRaceNight) !== JSON.stringify(raceNight);
   }, [draftRaceNight, raceNight]);
+  const isEditingRaceNightInput = focusedRaceNightInputCount > 0;
+  const markLocalRaceNightEdit = React.useCallback(() => {
+    recentLocalEditUntilRef.current = Date.now() + 6000;
+  }, []);
+  const handleRaceNightInputFocus = React.useCallback(() => {
+    setFocusedRaceNightInputCount((current) => current + 1);
+  }, []);
+  const handleRaceNightInputBlur = React.useCallback(() => {
+    setFocusedRaceNightInputCount((current) => Math.max(current - 1, 0));
+  }, []);
+
+  useEffect(() => {
+    if (!raceNight) {
+      return;
+    }
+
+    setDraftRaceNight((current) => {
+      if (!current || current.id !== raceNight.id) {
+        return raceNight;
+      }
+
+      if (isEditingRaceNightInput || Date.now() < recentLocalEditUntilRef.current) {
+        return current;
+      }
+
+      const nextRaceNight = mergeRaceNightChecklistForDisplay(raceNight, raceNight);
+
+      return JSON.stringify(nextRaceNight) === JSON.stringify(current) ? current : nextRaceNight;
+    });
+  }, [isEditingRaceNightInput, raceNight]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const refreshSharedRaceNight = () => {
+        if (hasUnsavedChanges || isEditingRaceNightInput || Date.now() < recentLocalEditUntilRef.current) {
+          return;
+        }
+
+        void refreshRaceNight(raceNightId).catch((error) => {
+          if (isActive) {
+            console.warn("Unable to refresh shared race night on race-night screen.", error);
+          }
+        });
+      };
+
+      refreshSharedRaceNight();
+
+      const interval = setInterval(refreshSharedRaceNight, 3000);
+
+      return () => {
+        isActive = false;
+        clearInterval(interval);
+      };
+    }, [hasUnsavedChanges, isEditingRaceNightInput, raceNightId, refreshRaceNight]),
+  );
+  const rosterCurrentTeamRole = useMemo(() => {
+    if (!userId) {
+      return undefined;
+    }
+
+    return teamMembers.find((member) => member.userId === userId)?.role;
+  }, [teamMembers, userId]);
+  const canFinishRaceNight =
+    isTeamOwner ||
+    rosterCurrentTeamRole === "Owner" ||
+    rosterCurrentTeamRole === "Driver" ||
+    rosterCurrentTeamRole === "Crew Chief";
+  const shouldShowFinishButton = activeStage === "aFeature";
+  const isTotalLapsPromptActive = totalLapsTooltipStage === activeStage;
+  const checklistCheckedByName = getFirstName(userName) ?? getFirstName(userEmail) ?? "Crew";
+  const nextStage = useMemo(() => {
+    const activeStageIndex = raceNightStageOrder.indexOf(activeStage);
+    return raceNightStageOrder[activeStageIndex + 1];
+  }, [activeStage]);
+  const bottomStageButtonLabel =
+    activeStage === "aFeature"
+      ? "Finish Race Night"
+      : nextStage
+        ? `Next Stage: ${raceNightStageLabels[nextStage]}`
+        : "Finish Race Night";
+  const effectiveTabsHeaderHeight = Math.max(pinnedHeaderHeight, inlineTabsHeaderHeight);
+  const effectiveStageTabsHeaderHeight = Math.max(pinnedStageTabsHeight, inlineStageTabsHeight);
+  const scrollToSectionContent = React.useCallback((delay = 0, sectionId = activeSection) => {
+    const runScroll = () => {
+      const targetAnchorY =
+        sectionId === "setups" && setupsSectionAnchorY > 0 ? setupsSectionAnchorY : sectionContentAnchorY;
+
+      keyboardScrollRef.current?.scrollToPosition?.(
+        0,
+        Math.max(
+          targetAnchorY - effectiveStageTabsHeaderHeight - spacing(0.5),
+          0,
+        ),
+        false,
+      );
+    };
+
+    if (delay > 0) {
+      setTimeout(runScroll, delay);
+      return;
+    }
+
+    runScroll();
+  }, [
+    activeSection,
+    effectiveStageTabsHeaderHeight,
+    sectionContentAnchorY,
+    setupsSectionAnchorY,
+  ]);
+  const scrollToTotalLaps = React.useCallback((delay = 0) => {
+    const runScroll = () => {
+      keyboardScrollRef.current?.scrollToPosition?.(
+        0,
+        Math.max(
+          totalLapsAnchorY - effectiveTabsHeaderHeight - spacing(0.5),
+          0,
+        ),
+        false,
+      );
+    };
+
+    if (delay > 0) {
+      setTimeout(runScroll, delay);
+      return;
+    }
+
+    runScroll();
+  }, [effectiveTabsHeaderHeight, totalLapsAnchorY]);
+  const handleScroll = React.useCallback((event: any) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const nextPinnedTabsVisible = offsetY >= Math.max(titleHeaderHeight - spacing(1), 0);
+
+    if (nextPinnedTabsVisible !== pinnedTabsVisibleRef.current) {
+      pinnedTabsVisibleRef.current = nextPinnedTabsVisible;
+      setPinnedTabsVisible(nextPinnedTabsVisible);
+    }
+  }, [titleHeaderHeight]);
+  const markUserScrolling = React.useCallback(() => {
+    isUserScrollingRef.current = true;
+    lastUserScrollAtRef.current = Date.now();
+  }, []);
+  const markUserScrollSettled = React.useCallback(() => {
+    lastUserScrollAtRef.current = Date.now();
+
+    setTimeout(() => {
+      if (Date.now() - lastUserScrollAtRef.current >= 180) {
+        isUserScrollingRef.current = false;
+      }
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingStageScrollKey || pendingStageScrollKey !== `${activeStage}:${activeSection}`) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      scrollToSectionContent();
+      setPendingStageScrollKey(undefined);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [activeSection, activeStage, pendingStageScrollKey, scrollToSectionContent]);
+
+  useEffect(() => {
+    if (!pendingSectionScrollTarget || pendingSectionScrollTarget !== activeSection) {
+      return;
+    }
+
+    if (pendingSectionScrollTarget === "setups" && setupsSectionAnchorY <= 0) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      scrollToSectionContent(0, pendingSectionScrollTarget);
+      setPendingSectionScrollTarget(null);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [activeSection, pendingSectionScrollTarget, scrollToSectionContent, setupsSectionAnchorY]);
+
+  useEffect(() => {
+    if (!totalLapsTooltipStage || activeStage !== totalLapsTooltipStage) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      scrollToTotalLaps();
+      totalLapsInputRef.current?.focus();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [activeStage, scrollToTotalLaps, totalLapsTooltipStage]);
 
   useEffect(() => {
     if (!draftRaceNight || !hasUnsavedChanges || isReadOnly) {
@@ -385,6 +833,10 @@ export default function RaceNightScreen({ navigation, route }: any) {
     }
 
     const timeout = setTimeout(() => {
+      if (isUserScrollingRef.current || Date.now() - lastUserScrollAtRef.current < 1200) {
+        return;
+      }
+
       void saveRaceNight(raceNightId, {
         ...draftRaceNight,
         lastViewedStage: activeStage,
@@ -400,6 +852,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
     key: Exclude<keyof RaceNightStageData, "checklistSections" | "started" | "lapTimer" | "setupAdjustments">,
     value: string,
   ) => {
+    markLocalRaceNightEdit();
     setDraftRaceNight((current) => {
       if (!current) {
         return current;
@@ -519,6 +972,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
   };
 
   const handleSetupNoteChange = (value: string) => {
+    markLocalRaceNightEdit();
     setDraftRaceNight((current) => {
       if (!current) {
         return current;
@@ -549,6 +1003,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
     fieldKey: TField,
     value: string,
   ) => {
+    markLocalRaceNightEdit();
     setDraftRaceNight((current) => {
       if (!current) {
         return current;
@@ -575,6 +1030,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
   };
 
   const handleChassisSetupChange = (fieldKey: ChassisFieldKey, value: string) => {
+    markLocalRaceNightEdit();
     setDraftRaceNight((current) => {
       if (!current) {
         return current;
@@ -617,7 +1073,41 @@ export default function RaceNightScreen({ navigation, route }: any) {
     });
   };
 
+  const handleChassisMeasurementChange = (fieldKey: ChassisFieldKey, value: string) => {
+    handleChassisSetupChange(fieldKey, sanitizeFractionMeasurementInput(value));
+  };
+
+  const handleChassisMeasurementBlur = (fieldKey: ChassisFieldKey) => {
+    markLocalRaceNightEdit();
+    setDraftRaceNight((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        stageSessions: {
+          ...current.stageSessions,
+          [activeStage]: {
+            ...current.stageSessions[activeStage],
+            started: true,
+            setupAdjustments: {
+              ...current.stageSessions[activeStage].setupAdjustments,
+              chassis: {
+                ...current.stageSessions[activeStage].setupAdjustments.chassis,
+                [fieldKey]: normalizeFractionMeasurementInput(
+                  current.stageSessions[activeStage].setupAdjustments.chassis[fieldKey],
+                ),
+              },
+            },
+          },
+        },
+      };
+    });
+  };
+
   const handleGearSetupChange = (fieldKey: keyof GearSetup, value: string) => {
+    markLocalRaceNightEdit();
     setDraftRaceNight((current) => {
       if (!current) {
         return current;
@@ -671,36 +1161,97 @@ export default function RaceNightScreen({ navigation, route }: any) {
   };
 
   const handleChecklistToggle = (sectionId: string, itemId: string) => {
-    setDraftRaceNight((current) => {
-      if (!current) {
-        return current;
-      }
+    if (!draftRaceNight) {
+      return;
+    }
 
-      return {
-        ...current,
-        stageSessions: {
-          ...current.stageSessions,
-          [activeStage]: {
-            ...current.stageSessions[activeStage],
-            started: true,
-            checklistSections: current.stageSessions[activeStage].checklistSections.map((section) =>
-              section.id === sectionId
-                ? {
-                    ...section,
-                    items: section.items.map((item) =>
-                      item.id === itemId ? { ...item, checked: !item.checked } : item,
-                    ),
-                  }
-                : section,
-            ),
-          },
+    const nextDraftRaceNight = {
+      ...draftRaceNight,
+      stageSessions: {
+        ...draftRaceNight.stageSessions,
+        [activeStage]: {
+          ...draftRaceNight.stageSessions[activeStage],
+          started: true,
+          checklistSections: draftRaceNight.stageSessions[activeStage].checklistSections.map((section) =>
+            section.id === sectionId
+              ? {
+                  ...section,
+                  items: section.items.map((item) =>
+                    item.id === itemId
+                      ? {
+                          ...item,
+                          checked: !item.checked,
+                          checkedByName: item.checked ? undefined : checklistCheckedByName,
+                        }
+                      : item,
+                  ),
+                }
+              : section,
+          ),
         },
-      };
+      },
+    };
+
+    setDraftRaceNight(nextDraftRaceNight);
+    void saveRaceNight(raceNightId, nextDraftRaceNight).catch((error) => {
+      const message = error instanceof Error ? error.message : "Unable to sync checklist change.";
+      Alert.alert(
+        "Checklist sync failed",
+        `This checklist change was saved on this device, but it did not sync to the team yet.\n\n${message}`,
+      );
     });
   };
 
   const handleTotalLapsChange = (value: string) => {
-    handleStageFieldChange("totalLaps", value.replace(/[^0-9]/g, ""));
+    const nextValue = value.replace(/[^0-9]/g, "");
+
+    if (!draftRaceNight) {
+      return;
+    }
+
+    markLocalRaceNightEdit();
+
+    const nextDraftRaceNight = {
+      ...draftRaceNight,
+      stageSessions: {
+        ...draftRaceNight.stageSessions,
+        [activeStage]: {
+          ...draftRaceNight.stageSessions[activeStage],
+          started: true,
+          totalLaps: nextValue,
+        },
+      },
+    };
+
+    setDraftRaceNight(nextDraftRaceNight);
+    void saveRaceNight(raceNightId, nextDraftRaceNight).catch((error) => {
+      console.warn("Unable to sync total laps change.", error);
+    });
+  };
+
+  const handleWeatherZipChange = (value: string) => {
+    handleStageFieldChange("weatherZipCode", value.replace(/[^0-9]/g, "").slice(0, 5));
+  };
+
+  const handleWeatherZipBlur = () => {
+    handleRaceNightInputBlur();
+
+    if (!draftRaceNight) {
+      return;
+    }
+
+    void saveRaceNight(raceNightId, draftRaceNight).catch((error) => {
+      console.warn("Unable to sync weather ZIP change.", error);
+    });
+  };
+
+  const handleTotalLapsEditingComplete = () => {
+    if (totalLapsTooltipStage !== activeStage) {
+      return;
+    }
+
+    setTotalLapsTooltipStage(null);
+    setPendingStageScrollKey(`${activeStage}:${activeSection}`);
   };
 
   const updateStageLapEntries = (
@@ -776,6 +1327,10 @@ export default function RaceNightScreen({ navigation, route }: any) {
   };
 
   const handleCaution = () => {
+    if (activeStage === "hotLaps") {
+      return;
+    }
+
     setLiveTimers((current) => {
       if (!current[activeStage].isRunning) {
         return current;
@@ -820,58 +1375,95 @@ export default function RaceNightScreen({ navigation, route }: any) {
   };
 
   const handleCheckeredFlag = () => {
+    Keyboard.dismiss();
+
+    if (activeStage === "hotLaps") {
+      return;
+    }
+
     if (activeLiveTimer.isRunning || activeLiveTimer.elapsedMs > 0) {
       recordLapEntry(false);
     }
 
-    setActiveSection("results");
+    startTransition(() => {
+      setActiveSection("results");
+    });
+  };
+
+  const handleSectionPress = (sectionId: (typeof raceNightSectionTabs)[number]["id"]) => {
+    Keyboard.dismiss();
+
+    startTransition(() => {
+      setActiveSection(sectionId);
+      setPendingSectionScrollTarget(sectionId);
+    });
+  };
+
+  const handleSetupTabPress = (tabId: (typeof raceNightSetupTabs)[number]["id"]) => {
+    Keyboard.dismiss();
+
+    startTransition(() => {
+      setActiveSetupTab(tabId);
+    });
   };
 
   const handleStagePress = (nextStage: RaceNightStageKey) => {
+    Keyboard.dismiss();
+
     if (nextStage === activeStage) {
       return;
     }
 
-    setDraftRaceNight((current) => {
-      if (!current) {
-        return current;
+    const shouldShowTotalLapsTooltip =
+      nextStage !== "hotLaps" &&
+      !isReadOnly &&
+      !draftRaceNight.stageSessions[nextStage].totalLaps.trim();
+
+    let nextDraftRaceNight = draftRaceNight;
+
+    if (nextDraftRaceNight) {
+      const targetStage = nextDraftRaceNight.stageSessions[nextStage];
+
+      if (!targetStage.started) {
+        const nextStageIndex = raceNightStageOrder.indexOf(nextStage);
+        const previousStartedStageKey = [...raceNightStageOrder]
+          .slice(0, nextStageIndex)
+          .reverse()
+          .find((stageKey) => nextDraftRaceNight.stageSessions[stageKey].started);
+
+        if (previousStartedStageKey) {
+          const previousStage = nextDraftRaceNight.stageSessions[previousStartedStageKey];
+          nextDraftRaceNight = {
+            ...nextDraftRaceNight,
+            stageSessions: {
+              ...nextDraftRaceNight.stageSessions,
+              [nextStage]: cloneStageData(previousStage),
+            },
+          };
+        }
       }
 
-      const targetStage = current.stageSessions[nextStage];
-      if (targetStage.started) {
-        return current;
-      }
-
-      const nextStageIndex = raceNightStageOrder.indexOf(nextStage);
-      const previousStartedStageKey = [...raceNightStageOrder]
-        .slice(0, nextStageIndex)
-        .reverse()
-        .find((stageKey) => current.stageSessions[stageKey].started);
-      if (!previousStartedStageKey) {
-        return current;
-      }
-
-      const previousStage = current.stageSessions[previousStartedStageKey];
-
-      return {
-        ...current,
-        stageSessions: {
-          ...current.stageSessions,
-          [nextStage]: cloneStageData(previousStage),
-        },
+      nextDraftRaceNight = {
+        ...nextDraftRaceNight,
+        lastViewedStage: nextStage,
       };
+
+      setDraftRaceNight(nextDraftRaceNight);
+      void saveRaceNight(raceNightId, nextDraftRaceNight);
+    }
+
+    startTransition(() => {
+      setActiveStage(nextStage);
     });
 
-    setActiveStage(nextStage);
-    setDraftRaceNight((current) =>
-      current
-        ? {
-            ...current,
-            lastViewedStage: nextStage,
-          }
-        : current,
-    );
-    void saveRaceNight(raceNightId, { lastViewedStage: nextStage });
+    if (shouldShowTotalLapsTooltip) {
+      setTotalLapsTooltipStage(nextStage);
+      setPendingStageScrollKey(undefined);
+      return;
+    }
+
+    setTotalLapsTooltipStage(null);
+    setPendingStageScrollKey(`${nextStage}:${activeSection}`);
   };
 
   const handleSave = async (status?: RaceNight["status"]) => {
@@ -887,7 +1479,26 @@ export default function RaceNightScreen({ navigation, route }: any) {
               ? undefined
               : draftRaceNight.rainoutStage,
       });
-      navigation.navigate("MainTabs", { screen: "Events" });
+
+      if (status === "rainout") {
+        navigation.getParent()?.navigate("MainTabs", { screen: "Home" });
+        return;
+      }
+
+      if (status === "completed") {
+        navigation.getParent()?.navigate("PastRaces");
+        return;
+      }
+
+      const activeStageIndex = raceNightStageOrder.indexOf(activeStage);
+      const nextStage = raceNightStageOrder[activeStageIndex + 1];
+
+      if (nextStage) {
+        handleStagePress(nextStage);
+        return;
+      }
+
+      navigation.getParent()?.navigate("PastRaces");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save the race night.";
       Alert.alert("Save failed", message);
@@ -895,25 +1506,264 @@ export default function RaceNightScreen({ navigation, route }: any) {
   };
 
     return (
+      <View style={styles.container}>
+        {pinnedTabsVisible ? (
+        <View
+          style={styles.fixedTabsHeader}
+          onLayout={(event) => {
+            setPinnedHeaderHeight(event.nativeEvent.layout.height);
+          }}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.stickyStageTabsWrap}>
+          <View
+            style={styles.tabCard}
+            onLayout={(event) => {
+              setPinnedStageTabsHeight(event.nativeEvent.layout.height);
+            }}
+          >
+            <View style={styles.tabRow}>
+              {raceNightStageOrder.map((stageKey) => (
+                <Pressable
+                  key={stageKey}
+                  onPress={() => handleStagePress(stageKey)}
+                  style={[
+                    styles.stageTab,
+                    activeStage === stageKey ? styles.stageTabActive : undefined,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.stageTabText,
+                      activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                    ]}
+                  >
+                    {stageKey === "heat" ? (
+                      <Text
+                        style={[
+                          styles.stageTabTextStackedWrap,
+                          activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.stageTabText,
+                            styles.stageTabTextStackedTop,
+                            activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                          ]}
+                        >
+                          Heat
+                        </Text>
+                        {"\n"}
+                        <Text
+                          style={[
+                            styles.stageTabText,
+                            styles.stageTabTextHeatBottom,
+                            activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                          ]}
+                        >
+                          Race
+                        </Text>
+                      </Text>
+                    ) : stageKey === "bFeature" || stageKey === "aFeature" ? (
+                      <Text
+                        style={[
+                          styles.stageTabTextStackedWrap,
+                          activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.stageTabText,
+                            styles.stageTabTextStackedTop,
+                            activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                          ]}
+                        >
+                          {stageKey === "bFeature" ? "B" : "A"}
+                        </Text>
+                        {"\n"}
+                        <Text
+                          style={[
+                            styles.stageTabText,
+                            styles.stageTabTextStackedBottom,
+                            activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                          ]}
+                        >
+                          Feature
+                        </Text>
+                      </Text>
+                    ) : (
+                      raceNightStageLabels[stageKey]
+                    )}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+            </View>
+          </View>
+        </View> 
+        ) : null}
       <KeyboardScreen
-        style={styles.container}
+        scrollRef={keyboardScrollRef}
+        style={styles.scrollArea}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing(10) }]}
+        onScroll={handleScroll}
+        onScrollBeginDrag={markUserScrolling}
+        onScrollEndDrag={markUserScrollSettled}
+        onMomentumScrollEnd={markUserScrollSettled}
       >
-      <View style={styles.titleRow}>
-        <Text style={styles.h1}>{draftRaceNight.eventTitle}</Text>
-        <Pressable onPress={showRaceNightInstructions} style={styles.infoBadge}>
-          <Text style={styles.infoBadgeText}>i</Text>
-        </Pressable>
-      </View>
-      <Text style={styles.subhead}>
-        {draftRaceNight.trackName} | {draftRaceNight.eventDate}
-      </Text>
+        <View
+          onLayout={(event) => {
+            setTitleHeaderHeight(event.nativeEvent.layout.height);
+          }}
+        >
+          <View style={styles.titleRow}>
+            <Text style={styles.h1}>{draftRaceNight.eventTitle}</Text>
+            <View style={styles.titleActionRow}>
+              <Pressable
+                accessibilityLabel="Edit race title"
+                onPress={openTitleEditor}
+                style={styles.titleEditButton}
+              >
+                <View style={styles.titleEditPencil}>
+                  <View style={styles.titleEditPencilTip} />
+                </View>
+              </Pressable>
+              <Pressable onPress={showRaceNightInstructions} style={styles.infoBadge}>
+                <Text style={styles.infoBadgeText}>i</Text>
+              </Pressable>
+            </View>
+          </View>
+          <Text style={styles.subhead}>
+            {draftRaceNight.trackName} | {draftRaceNight.eventDate}
+          </Text>
+        </View>
+        <View
+          onLayout={(event) => {
+            setInlineTabsHeaderHeight(event.nativeEvent.layout.height);
+          }}
+        >
+          <View style={styles.stickyStageTabsWrap}>
+            <View
+              style={styles.tabCard}
+              onLayout={(event) => {
+                setInlineStageTabsHeight(event.nativeEvent.layout.height);
+              }}
+            >
+              <View style={styles.tabRow}>
+                {raceNightStageOrder.map((stageKey) => (
+                  <Pressable
+                    key={stageKey}
+                    onPress={() => handleStagePress(stageKey)}
+                    style={[
+                      styles.stageTab,
+                      activeStage === stageKey ? styles.stageTabActive : undefined,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.stageTabText,
+                        activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                      ]}
+                    >
+                      {stageKey === "heat" ? (
+                        <Text
+                          style={[
+                            styles.stageTabTextStackedWrap,
+                            activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.stageTabText,
+                              styles.stageTabTextStackedTop,
+                              activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                            ]}
+                          >
+                            Heat
+                          </Text>
+                          {"\n"}
+                          <Text
+                            style={[
+                              styles.stageTabText,
+                              styles.stageTabTextHeatBottom,
+                              activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                            ]}
+                          >
+                            Race
+                          </Text>
+                        </Text>
+                      ) : stageKey === "bFeature" || stageKey === "aFeature" ? (
+                        <Text
+                          style={[
+                            styles.stageTabTextStackedWrap,
+                            activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.stageTabText,
+                              styles.stageTabTextStackedTop,
+                              activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                            ]}
+                          >
+                            {stageKey === "bFeature" ? "B" : "A"}
+                          </Text>
+                          {"\n"}
+                          <Text
+                            style={[
+                              styles.stageTabText,
+                              styles.stageTabTextStackedBottom,
+                              activeStage === stageKey ? styles.stageTabTextActive : undefined,
+                            ]}
+                          >
+                            Feature
+                          </Text>
+                        </Text>
+                      ) : (
+                        raceNightStageLabels[stageKey]
+                      )}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+            {!isTotalLapsPromptActive ? (
+              <View style={styles.stickySectionTabsWrap}>
+                <View style={styles.sectionTabsCard}>
+                  <View style={styles.sectionTabsRow}>
+                    {raceNightSectionTabs.map((section) => (
+                      <Pressable
+                        key={section.id}
+                        onPress={() => handleSectionPress(section.id)}
+                        style={[
+                          styles.sectionTab,
+                          activeSection === section.id ? styles.sectionTabActive : undefined,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.sectionTabText,
+                            activeSection === section.id ? styles.sectionTabTextActive : undefined,
+                          ]}
+                        >
+                          {section.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        </View>
       {isReadOnly ? (
         <View style={styles.readOnlyBanner}>
           <Text style={styles.readOnlyBannerText}>
             {draftRaceNight.status === "rainout"
               ? `This race night was marked as a rainout during ${raceNightStageLabels[draftRaceNight.rainoutStage ?? activeStage]}. You can still update it or resume racing if the track starts back up.`
-              : "This race night is completed and can no longer be edited."}
+              : "All data is Read-Only on completed race nights and can't be edited."}
           </Text>
         </View>
       ) : null}
@@ -925,78 +1775,50 @@ export default function RaceNightScreen({ navigation, route }: any) {
         </View>
       ) : null}
 
-      <View style={styles.tabCard}>
-        <View style={styles.tabRow}>
-          {raceNightStageOrder.map((stageKey) => (
-            <Pressable
-              key={stageKey}
-              onPress={() => handleStagePress(stageKey)}
-              style={[
-                styles.stageTab,
-                activeStage === stageKey ? styles.stageTabActive : undefined,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.stageTabText,
-                  activeStage === stageKey ? styles.stageTabTextActive : undefined,
-                ]}
-              >
-                {raceNightStageLabels[stageKey]}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={styles.stageTabSupport}>
-          Save separate conditions, lineup, lap-time notes, and finish data for each stage.
-        </Text>
-      </View>
-
-      <View style={styles.sectionTabsCard}>
-        <View style={styles.sectionTabsRow}>
-          {raceNightSectionTabs.map((section) => (
-            <Pressable
-              key={section.id}
-              onPress={() => setActiveSection(section.id)}
-              style={[
-                styles.sectionTab,
-                activeSection === section.id ? styles.sectionTabActive : undefined,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.sectionTabText,
-                  activeSection === section.id ? styles.sectionTabTextActive : undefined,
-                ]}
-              >
-                {section.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
       {!isHotLapsStage ? (
-        <View style={styles.topRaceMetaRow}>
-          <View style={styles.topRaceMetaCard}>
-            <View style={styles.topRaceMetaInline}>
-              <Text style={styles.topRaceMetaLabelInline}>Total Laps</Text>
-              <TextInput
-                value={currentStage.totalLaps}
-                onChangeText={handleTotalLapsChange}
-              placeholder=""
-              placeholderTextColor="#5E7B94"
-              keyboardType="number-pad"
-              editable={!isStageInputDisabled}
-              style={styles.topRaceMetaInput}
-            />
+        <View
+          onLayout={(event) => {
+            setTotalLapsAnchorY(event.nativeEvent.layout.y);
+          }}
+        >
+          <View style={styles.topRaceMetaRow}>
+            <View style={styles.topRaceMetaCard}>
+              <View style={styles.topRaceMetaInline}>
+                <Text style={styles.topRaceMetaLabelInline}>Total Laps</Text>
+                <TextInput
+                  ref={totalLapsInputRef}
+                  value={currentStage.totalLaps}
+                  onChangeText={handleTotalLapsChange}
+                  onFocus={handleRaceNightInputFocus}
+                  onBlur={handleRaceNightInputBlur}
+                  onEndEditing={handleTotalLapsEditingComplete}
+                  onSubmitEditing={handleTotalLapsEditingComplete}
+                  placeholder=""
+                  placeholderTextColor="#5E7B94"
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                  blurOnSubmit
+                  editable={!isStageInputDisabled}
+                  style={styles.topRaceMetaInput}
+                />
+              </View>
             </View>
           </View>
+          {totalLapsTooltipStage === activeStage ? (
+            <View style={styles.inlineTooltipWrap}>
+              <View style={styles.inlineTooltipPointer} />
+              <View style={styles.inlineTooltipCard}>
+                <Text style={styles.inlineTooltipTitle}>{getTotalLapsTooltipLabel(activeStage)}</Text>
+              </View>
+            </View>
+          ) : null}
         </View>
       ) : null}
       {!isReadOnly ? (
         <Pressable
           onPress={() => {
+            Keyboard.dismiss();
+
             if (draftRaceNight.status === "rainout") {
               Alert.alert(
                 "Resume Racing?",
@@ -1036,20 +1858,30 @@ export default function RaceNightScreen({ navigation, route }: any) {
         </Pressable>
       ) : null}
 
+      <View
+        onLayout={(event) => {
+          setSectionContentAnchorY(event.nativeEvent.layout.y);
+        }}
+      />
+
         {activeSection === "weather" ? (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Weather</Text>
-            <Text style={styles.weatherSectionHelper}>
-              Enter the ZIP code for weather before loading conditions for this stage.
-            </Text>
+          <Pressable onPress={Keyboard.dismiss} style={styles.card}>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.sectionTitle}>Weather</Text>
+            </Pressable>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.weatherSectionHelper}>
+                Enter the ZIP code for weather before loading conditions for this stage.
+              </Text>
+            </Pressable>
             <View pointerEvents={isStageInputDisabled ? "none" : "auto"}>
               <View style={styles.weatherAutofillRow}>
                 <View style={styles.weatherControlHalf}>
                   <TextInput
                     value={currentStage.weatherZipCode}
-                    onChangeText={(value) =>
-                      handleStageFieldChange("weatherZipCode", value.replace(/[^0-9]/g, "").slice(0, 5))
-                    }
+                    onChangeText={handleWeatherZipChange}
+                    onFocus={handleRaceNightInputFocus}
+                    onBlur={handleWeatherZipBlur}
                     placeholder="ZIP Code"
                     placeholderTextColor="#5E7B94"
                     keyboardType="numeric"
@@ -1065,6 +1897,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                 <View style={styles.weatherControlHalf}>
                   <Pressable
                     onPress={() => {
+                      Keyboard.dismiss();
                       void handleWeatherAutofill();
                     }}
                     style={[
@@ -1126,12 +1959,14 @@ export default function RaceNightScreen({ navigation, route }: any) {
               multiline
             />
           </View>
-        </View>
-      ) : null}
+          </Pressable>
+        ) : null}
 
       {activeSection === "track" ? (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Track Condition</Text>
+        <Pressable onPress={Keyboard.dismiss} style={styles.card}>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.sectionTitle}>Track Condition</Text>
+          </Pressable>
           <View pointerEvents={isStageInputDisabled ? "none" : "auto"}>
             <Field
               label="Track Temp"
@@ -1162,9 +1997,11 @@ export default function RaceNightScreen({ navigation, route }: any) {
                 halfWidth
               />
             </View>
-            <Text style={styles.readOnlyHelper}>
-              If this event track matches one of your saved tracks, track type, banking, and length should auto-fill when race night starts.
-            </Text>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.readOnlyHelper}>
+                If this event track matches one of your saved tracks, track type, banking, and length should auto-fill when race night starts.
+              </Text>
+            </Pressable>
             <Field
               label="Surface"
               value={currentStage.trackSurface}
@@ -1185,12 +2022,14 @@ export default function RaceNightScreen({ navigation, route }: any) {
               multiline
             />
           </View>
-        </View>
+        </Pressable>
       ) : null}
 
       {activeSection === "checklist" ? (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Checklist</Text>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.sectionTitle}>Checklist</Text>
+          </Pressable>
           <View pointerEvents={isStageInputDisabled ? "none" : "auto"}>
             {currentStage.checklistSections.map((section) => (
               <View key={`${activeStage}-${section.id}`} style={styles.checklistSection}>
@@ -1202,7 +2041,12 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     style={styles.checklistRow}
                   >
                     <View style={[styles.checkbox, item.checked ? styles.checkboxChecked : undefined]} />
-                    <Text style={styles.checklistLabel}>{item.label}</Text>
+                    <Text style={styles.checklistLabel}>
+                      {item.label}
+                      {item.checked && item.checkedByName ? (
+                        <Text style={styles.checklistCheckedBy}> ({item.checkedByName})</Text>
+                      ) : null}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
@@ -1212,13 +2056,20 @@ export default function RaceNightScreen({ navigation, route }: any) {
       ) : null}
 
       {activeSection === "setups" ? (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Setups</Text>
+        <View
+          style={styles.card}
+          onLayout={(event) => {
+            setSetupsSectionAnchorY(event.nativeEvent.layout.y);
+          }}
+        >
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.sectionTitle}>Setups</Text>
+          </Pressable>
           <View style={styles.setupTabsRow}>
             {raceNightSetupTabs.map((tab) => (
               <Pressable
                 key={tab.id}
-                onPress={() => setActiveSetupTab(tab.id)}
+                onPress={() => handleSetupTabPress(tab.id)}
                 style={[
                   styles.setupTab,
                   activeSetupTab === tab.id ? styles.setupTabActive : undefined,
@@ -1230,7 +2081,13 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     activeSetupTab === tab.id ? styles.setupTabTextActive : undefined,
                   ]}
                 >
-                  {tab.label}
+                  {tab.id === "frontSuspension"
+                    ? "Front\nSuspension"
+                    : tab.id === "rearSuspension"
+                      ? "Rear\nSuspension"
+                      : tab.id === "gears" && draftRaceNight.raceCarType === "Sprint Car"
+                        ? "Driveline"
+                        : tab.label}
                 </Text>
               </Pressable>
             ))}
@@ -1244,12 +2101,27 @@ export default function RaceNightScreen({ navigation, route }: any) {
                       key={`${activeStage}-${field.key}`}
                       label={field.label}
                       value={currentStage.setupAdjustments.chassis[field.key]}
-                      onChangeText={(value) => handleChassisSetupChange(field.key, value)}
+                      onChangeText={(value) => handleChassisMeasurementChange(field.key, value)}
+                      onBlur={() => handleChassisMeasurementBlur(field.key)}
                       placeholder={field.placeholder}
+                      keyboardType={field.keyboardType}
                       halfWidth
                     />
                   ))}
                 </View>
+                {isWingSprintCar ? (
+                  <View style={styles.grid}>
+                    {raceNightWingSprintFields.map((field) => (
+                      <Field
+                        key={`${activeStage}-${field.key}`}
+                        label={field.label}
+                        value={currentStage.setupAdjustments.chassis[field.key]}
+                        onChangeText={(value) => handleChassisSetupChange(field.key, value)}
+                        placeholder={field.placeholder}
+                      />
+                    ))}
+                  </View>
+                ) : null}
                 <View style={styles.grid}>
                   {raceNightScaleWeightFields.map((field) => (
                     <Field
@@ -1263,9 +2135,11 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     />
                   ))}
                 </View>
-                <Text style={styles.readOnlyHelper}>
-                  Enter updated corner scale weights and the percentage fields below will auto-fill.
-                </Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.readOnlyHelper}>
+                    Enter updated corner scale weights and the percentage fields below will auto-fill.
+                  </Text>
+                </Pressable>
                 <View style={styles.grid}>
                   {raceNightCalculatedPercentFields.slice(0, 2).map((field) => (
                     <Field
@@ -1350,7 +2224,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     halfWidth
                   />
                 </View>
-                <View style={styles.estimateCard}>
+                <Pressable onPress={Keyboard.dismiss} style={styles.estimateCard}>
                   <Text style={styles.estimateTitle}>Estimated Scale Effect</Text>
                   {estimatedScaleEffect ? (
                     <>
@@ -1400,7 +2274,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                       Enter all four scale weights first, then the app can estimate how the changes may shift percentages.
                     </Text>
                   )}
-                </View>
+                </Pressable>
                 {raceNightChassisNoteFields.map((field) => (
                   <Field
                     key={`${activeStage}-${field.key}`}
@@ -1446,12 +2320,20 @@ export default function RaceNightScreen({ navigation, route }: any) {
                 </View>
                 <View style={styles.staggerRow}>
                   <View style={styles.staggerCard}>
-                    <Text style={styles.staggerLabel}>Front Stagger</Text>
+                    <Text style={styles.staggerLabel}>
+                      Front
+                      {"\n"}
+                      Stagger
+                    </Text>
                     <Text style={styles.staggerValue}>{frontStagger}</Text>
                     <Text style={styles.staggerHint}>RF minus LF</Text>
                   </View>
                   <View style={styles.staggerCard}>
-                    <Text style={styles.staggerLabel}>Rear Stagger</Text>
+                    <Text style={styles.staggerLabel}>
+                      Rear
+                      {"\n"}
+                      Stagger
+                    </Text>
                     <Text style={styles.staggerValue}>{rearStagger}</Text>
                     <Text style={styles.staggerHint}>RR minus LR</Text>
                   </View>
@@ -1471,6 +2353,88 @@ export default function RaceNightScreen({ navigation, route }: any) {
                       />
                   ))}
                 </View>
+                <View style={styles.grid}>
+                  {raceNightWheelOffsetFields.map((field) => (
+                    <Field
+                      key={`${activeStage}-${field.key}`}
+                      label={field.label}
+                      value={currentStage.setupAdjustments.tires[field.key]}
+                      onChangeText={(value) =>
+                        handleNestedSetupChange("tires", field.key, sanitizeFractionMeasurementInput(value))
+                      }
+                      onBlur={() =>
+                        handleNestedSetupChange(
+                          "tires",
+                          field.key,
+                          normalizeFractionMeasurementInput(currentStage.setupAdjustments.tires[field.key]),
+                        )
+                      }
+                      placeholder={field.placeholder}
+                      keyboardType={field.keyboardType}
+                      halfWidth
+                    />
+                  ))}
+                </View>
+                {!isHotLapsStage ? (
+                  <>
+                    <Text style={styles.setupSubSectionTitle}>Tire Temps</Text>
+                    <View style={styles.grid}>
+                      {raceNightTireTempCorners.map((corner) => (
+                        <View
+                          key={`${activeStage}-${corner.id}`}
+                          style={[styles.fieldBlock, styles.fieldBlockHalf, styles.tempCornerCard]}
+                        >
+                          <Text style={styles.tempCornerTitle}>{corner.label}</Text>
+                          <Field
+                            label="Inner"
+                            value={currentStage.setupAdjustments.tires[corner.innerKey]}
+                            onChangeText={(value) =>
+                              handleNestedSetupChange(
+                                "tires",
+                                corner.innerKey,
+                                value.replace(/[^0-9.]/g, ""),
+                              )
+                            }
+                            placeholder="90"
+                            keyboardType="decimal-pad"
+                          />
+                          <Field
+                            label="Middle"
+                            value={currentStage.setupAdjustments.tires[corner.middleKey]}
+                            onChangeText={(value) =>
+                              handleNestedSetupChange(
+                                "tires",
+                                corner.middleKey,
+                                value.replace(/[^0-9.]/g, ""),
+                              )
+                            }
+                            placeholder="92"
+                            keyboardType="decimal-pad"
+                          />
+                          <Field
+                            label="Outer"
+                            value={currentStage.setupAdjustments.tires[corner.outerKey]}
+                            onChangeText={(value) =>
+                              handleNestedSetupChange(
+                                "tires",
+                                corner.outerKey,
+                                value.replace(/[^0-9.]/g, ""),
+                              )
+                            }
+                            placeholder="94"
+                            keyboardType="decimal-pad"
+                          />
+                          <View style={styles.tempAverageRow}>
+                            <Text style={styles.tempAverageLabel}>Avg Temp</Text>
+                            <Text style={styles.tempAverageValue}>
+                              {tireTempAverages[corner.id]}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                ) : null}
               </>
             ) : null}
 
@@ -1524,9 +2488,11 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     ))}
                 </View>
                 <View style={styles.staggerCard}>
-                  <Text style={styles.gearRatioLabel}>Quick-Change Ratio</Text>
+                  <Text style={styles.gearRatioLabel}>Final Drive Ratio</Text>
                   <Text style={styles.gearRatioValue}>{gearRatio}</Text>
-                  <Text style={styles.staggerHint}>Ring teeth divided by pinion teeth</Text>
+                  <Text style={styles.staggerHint}>
+                    Ring/pinion ratio multiplied by top quick-change gear divided by bottom quick-change gear
+                  </Text>
                 </View>
                 {raceNightGearFields
                   .filter((field) => !field.halfWidth)
@@ -1548,13 +2514,17 @@ export default function RaceNightScreen({ navigation, route }: any) {
 
       {activeSection === "lapTimes" ? (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Stopwatch & Lap Times</Text>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.sectionTitle}>Stopwatch & Lap Times</Text>
+          </Pressable>
           <View pointerEvents={isStageInputDisabled ? "none" : "auto"}>
             <View style={styles.stopwatchTopRow}>
               <View style={styles.stopwatchStatCard}>
-                <Text style={styles.stopwatchStatLabel}>{raceNightStageLabels[activeStage]}</Text>
+                <Text style={styles.stopwatchStatLabel}>{getStopwatchStageLabel(activeStage)}</Text>
                 <Text style={styles.stopwatchStatValue}>
-                  Laps: {displayedLapNumber} of {currentStage.totalLaps || "0"}
+                  {isHotLapsStage
+                    ? `Laps: ${displayedLapNumber}`
+                    : `Laps: ${displayedLapNumber} of ${currentStage.totalLaps || "0"}`}
                 </Text>
               </View>
               <View style={styles.stopwatchStatCard}>
@@ -1573,7 +2543,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
             </View>
 
             <View style={styles.stopwatchDisplay}>
-              <Text style={styles.stopwatchRaceTitle}>{raceNightStageLabels[activeStage]}</Text>
+              <Text style={styles.stopwatchRaceTitle}>{getStopwatchStageLabel(activeStage)}</Text>
               <Text style={styles.stopwatchTime}>{formatDuration(elapsedCurrentLapMs)}</Text>
               <Text style={styles.stopwatchSubhead}>
                 {activeLiveTimer.isRunning
@@ -1604,9 +2574,9 @@ export default function RaceNightScreen({ navigation, route }: any) {
                 style={[
                   styles.stopwatchButton,
                   styles.cautionButton,
-                  !activeLiveTimer.isRunning ? styles.stopwatchButtonDisabled : undefined,
+                  isHotLapsStage || !activeLiveTimer.isRunning ? styles.stopwatchButtonDisabled : undefined,
                 ]}
-                disabled={!activeLiveTimer.isRunning}
+                disabled={isHotLapsStage || !activeLiveTimer.isRunning}
               >
                 <Text style={styles.cautionButtonText}>Caution</Text>
               </Pressable>
@@ -1623,7 +2593,11 @@ export default function RaceNightScreen({ navigation, route }: any) {
               </Pressable>
             </View>
 
-            <Pressable onPress={handleCheckeredFlag} style={styles.checkeredButton}>
+            <Pressable
+              onPress={handleCheckeredFlag}
+              style={[styles.checkeredButton, isHotLapsStage ? styles.stopwatchButtonDisabled : undefined]}
+              disabled={isHotLapsStage}
+            >
               <Text style={styles.checkeredButtonText}>Checkered Flag</Text>
             </Pressable>
 
@@ -1657,8 +2631,9 @@ export default function RaceNightScreen({ navigation, route }: any) {
               ))
             ) : (
               <Text style={styles.emptyLapText}>
-                No laps recorded yet. Set total laps in Results & Notes, then use Start and New Lap
-                as the race unfolds.
+                {isHotLapsStage
+                  ? "No laps recorded yet. Use Start and New Lap as the hot laps get under way."
+                  : "No laps recorded yet. Set total laps at the top of this stage, then use Start and New Lap as the race unfolds."}
               </Text>
             )}
           </View>
@@ -1667,7 +2642,9 @@ export default function RaceNightScreen({ navigation, route }: any) {
 
       {activeSection === "results" ? (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Results & Notes</Text>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.sectionTitle}>Positions & Notes</Text>
+          </Pressable>
           <View pointerEvents={isStageInputDisabled ? "none" : "auto"}>
             <View style={styles.grid}>
               <Field
@@ -1690,10 +2667,12 @@ export default function RaceNightScreen({ navigation, route }: any) {
               />
             </View>
             {isHotLapsStage ? (
-              <Text style={styles.readOnlyHelper}>
-                Hot Laps does not use starting or finishing position, so those fields stay disabled on
-                this tab.
-              </Text>
+              <Pressable onPress={Keyboard.dismiss}>
+                <Text style={styles.readOnlyHelper}>
+                  Hot Laps does not use starting or finishing position, so those fields stay disabled on
+                  this tab.
+                </Text>
+              </Pressable>
             ) : null}
             <Field
               label="Setup Notes"
@@ -1720,14 +2699,24 @@ export default function RaceNightScreen({ navigation, route }: any) {
         </View>
       ) : null}
 
-      {!isReadOnly ? (
+      {!isReadOnly && (!shouldShowFinishButton || canFinishRaceNight) ? (
         <>
-          <Pressable
-            onPress={() => handleSave()}
+          <AppPressable
+            onPress={() => {
+              Keyboard.dismiss();
+              if (activeStage === "aFeature") {
+                void handleSave("completed");
+                return;
+              }
+
+              if (nextStage) {
+                handleStagePress(nextStage);
+              }
+            }}
             style={[styles.primaryButton, { marginBottom: insets.bottom + spacing(10) }]}
           >
-            <Text style={styles.primaryButtonText}>Save Race Night</Text>
-          </Pressable>
+            <Text style={styles.primaryButtonText}>{bottomStageButtonLabel}</Text>
+          </AppPressable>
         </>
       ) : null}
 
@@ -1802,7 +2791,48 @@ export default function RaceNightScreen({ navigation, route }: any) {
           </View>
         </View>
       </Modal>
+      <Modal
+        visible={isTitleEditorVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsTitleEditorVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Race Title</Text>
+            <TextInput
+              value={editedRaceTitle}
+              onChangeText={setEditedRaceTitle}
+              placeholder="Race title"
+              placeholderTextColor="#5E7B94"
+              style={styles.input}
+            />
+            <View style={styles.modalActionRow}>
+              <Pressable
+                onPress={() => setIsTitleEditorVisible(false)}
+                style={[styles.modalCloseButton, styles.modalActionButton]}
+              >
+                <Text style={styles.modalCloseButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={isSavingRaceTitle}
+                onPress={() => void handleSaveRaceTitle()}
+                style={[
+                  styles.modalSaveButton,
+                  styles.modalActionButton,
+                  isSavingRaceTitle ? styles.modalSaveButtonDisabled : undefined,
+                ]}
+              >
+                <Text style={styles.modalSaveButtonText}>
+                  {isSavingRaceTitle ? "Saving..." : "Save Title"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       </KeyboardScreen>
+      </View>
     );
   }
 
@@ -1810,6 +2840,7 @@ function Field({
   label,
   value,
   onChangeText,
+  onBlur,
   placeholder,
   multiline,
   keyboardType,
@@ -1819,15 +2850,18 @@ function Field({
   label: string;
   value: string;
   onChangeText: (value: string) => void;
+  onBlur?: () => void;
   placeholder: string;
   multiline?: boolean;
-  keyboardType?: "default" | "decimal-pad" | "number-pad";
+  keyboardType?: "default" | "decimal-pad" | "number-pad" | "numbers-and-punctuation";
   editable?: boolean;
   halfWidth?: boolean;
 }) {
   return (
     <View style={[styles.fieldBlock, halfWidth ? styles.fieldBlockHalf : undefined]}>
-      <Text style={styles.label}>{label}</Text>
+      <Pressable onPress={Keyboard.dismiss}>
+        <Text style={styles.label}>{label}</Text>
+      </Pressable>
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -1837,6 +2871,7 @@ function Field({
         textAlignVertical={multiline ? "top" : "center"}
         keyboardType={keyboardType}
         editable={editable}
+        onBlur={onBlur}
         style={[
           styles.input,
           multiline ? styles.inputMultiline : undefined,
@@ -1907,6 +2942,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  fixedTabsHeader: {
+    backgroundColor: colors.bg,
+    elevation: 12,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 0,
+    zIndex: 20,
+  },
+  headerContent: {
+    paddingHorizontal: spacing(2),
+    paddingTop: spacing(2),
+  },
+  scrollArea: {
+    flex: 1,
+  },
   content: {
     padding: spacing(2),
   },
@@ -1930,11 +2981,61 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: spacing(1),
   },
+  titleActionRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing(0.75),
+    marginBottom: spacing(1),
+  },
+  titleEditButton: {
+    alignItems: "center",
+    backgroundColor: "#17314C",
+    borderColor: "#315B7D",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 30,
+    justifyContent: "center",
+    width: 30,
+  },
+  titleEditPencil: {
+    backgroundColor: "#8ED4FF",
+    borderRadius: 999,
+    height: 3,
+    transform: [{ rotate: "-45deg" }],
+    width: 15,
+  },
+  titleEditPencilTip: {
+    borderBottomColor: "transparent",
+    borderBottomWidth: 3,
+    borderLeftColor: "#F3FAFF",
+    borderLeftWidth: 5,
+    borderTopColor: "transparent",
+    borderTopWidth: 3,
+    height: 0,
+    left: -4,
+    position: "absolute",
+    top: -1.5,
+    width: 0,
+  },
   subhead: {
     color: colors.subtext,
     fontSize: 16,
     lineHeight: 24,
     marginBottom: spacing(1),
+  },
+  stickyStageTabsWrap: {
+    backgroundColor: colors.bg,
+    elevation: 12,
+    paddingBottom: spacing(0.25),
+    position: "relative",
+    zIndex: 12,
+  },
+  stickySectionTabsWrap: {
+    backgroundColor: colors.bg,
+    elevation: 11,
+    paddingBottom: spacing(0.15),
+    position: "relative",
+    zIndex: 11,
   },
   infoBadge: {
     alignItems: "center",
@@ -1942,7 +3043,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     height: 28,
     justifyContent: "center",
-    marginBottom: spacing(1),
     width: 28,
   },
   infoBadgeText: {
@@ -2109,6 +3209,38 @@ const styles = StyleSheet.create({
     textAlign: "center",
     width: 88,
   },
+  inlineTooltipWrap: {
+    alignItems: "flex-end",
+    marginBottom: spacing(1.5),
+    marginTop: -spacing(1),
+    paddingRight: spacing(2.5),
+  },
+  inlineTooltipPointer: {
+    borderLeftColor: "transparent",
+    borderLeftWidth: 10,
+    borderRightColor: "transparent",
+    borderRightWidth: 10,
+    borderTopColor: "transparent",
+    borderTopWidth: 0,
+    borderBottomColor: "#1780D4",
+    borderBottomWidth: 12,
+    marginRight: 24,
+  },
+  inlineTooltipCard: {
+    backgroundColor: "#1780D4",
+    borderColor: "#8ED4FF",
+    borderRadius: 16,
+    borderWidth: 1,
+    maxWidth: 270,
+    paddingHorizontal: spacing(1.5),
+    paddingVertical: spacing(1),
+  },
+  inlineTooltipTitle: {
+    color: "#F3FAFF",
+    fontSize: 14,
+    fontWeight: "800",
+    textAlign: "center",
+  },
   tabCard: {
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -2116,7 +3248,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginHorizontal: -4,
     padding: spacing(1.5),
-    marginBottom: spacing(2),
+    marginBottom: spacing(0.5),
   },
   tabRow: {
     flexDirection: "row",
@@ -2142,17 +3274,27 @@ const styles = StyleSheet.create({
     color: "#9FC6E4",
     fontSize: 12,
     fontWeight: "800",
+    lineHeight: 14,
     textAlign: "center",
     textTransform: "uppercase",
   },
+  stageTabTextStackedWrap: {
+    textAlign: "center",
+  },
+  stageTabTextStackedTop: {
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  stageTabTextStackedBottom: {
+    fontSize: 9,
+    lineHeight: 10,
+  },
+  stageTabTextHeatBottom: {
+    fontSize: 12,
+    lineHeight: 14,
+  },
   stageTabTextActive: {
     color: "#F3FAFF",
-  },
-  stageTabSupport: {
-    color: colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: spacing(1),
   },
   card: {
     backgroundColor: colors.card,
@@ -2167,7 +3309,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 18,
-    marginBottom: spacing(2),
+    marginBottom: spacing(0.5),
     padding: spacing(1.25),
   },
   sectionTabsRow: {
@@ -2227,6 +3369,49 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  setupSubSectionTitle: {
+    color: "#8ED4FF",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    marginBottom: spacing(1),
+    marginTop: spacing(0.75),
+    textAlign: "center",
+    textTransform: "uppercase",
+  },
+  tempCornerCard: {
+    backgroundColor: "#102947",
+    borderColor: "#21486A",
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: spacing(1.1),
+  },
+  tempCornerTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: spacing(0.5),
+    textAlign: "center",
+  },
+  tempAverageRow: {
+    alignItems: "center",
+    borderTopColor: "#21486A",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: spacing(0.25),
+    paddingTop: spacing(0.75),
+  },
+  tempAverageLabel: {
+    color: "#8ED4FF",
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: spacing(0.25),
+    textTransform: "uppercase",
+  },
+  tempAverageValue: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "800",
   },
   setupTabsRow: {
     flexDirection: "row",
@@ -2395,7 +3580,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
+    lineHeight: 13,
     marginBottom: spacing(0.4),
+    textAlign: "center",
     textTransform: "uppercase",
   },
   gearRatioLabel: {
@@ -2502,6 +3689,28 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     paddingVertical: 12,
+  },
+  modalActionRow: {
+    flexDirection: "row",
+    gap: spacing(1),
+    marginTop: spacing(1.25),
+  },
+  modalActionButton: {
+    flex: 1,
+  },
+  modalSaveButton: {
+    alignItems: "center",
+    backgroundColor: "#1780D4",
+    borderRadius: 999,
+    paddingVertical: 12,
+  },
+  modalSaveButtonDisabled: {
+    opacity: 0.6,
+  },
+  modalSaveButtonText: {
+    color: "#F3FAFF",
+    fontSize: 14,
+    fontWeight: "800",
   },
   modalCloseButtonText: {
     color: "#8ED4FF",
@@ -2704,6 +3913,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     flex: 1,
   },
+  checklistCheckedBy: {
+    color: "#8ED4FF",
+    fontStyle: "italic",
+    fontWeight: "700",
+  },
   primaryButton: {
     alignItems: "center",
     backgroundColor: "#1780D4",
@@ -2731,5 +3945,3 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 });
-
-

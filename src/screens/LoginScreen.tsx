@@ -203,7 +203,8 @@ export default function LoginScreen() {
         >
           <ScrollView
             contentContainerStyle={styles.container}
-            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            keyboardShouldPersistTaps="always"
           >
             <Pressable onPress={() => navigation.navigate("AuthChoice")} style={styles.backButton}>
               <Text style={styles.backButtonText}>{"< Back"}</Text>

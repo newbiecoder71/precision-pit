@@ -12,6 +12,8 @@ import {
 import { colors, spacing } from "../theme";
 import { useAppStore } from "../store/useAppStore";
 
+const ACCOUNT_SETTINGS_TOOLTIP_KEY = "hasSeenAccountSettingsTooltip";
+
 export default function AccountScreen({ navigation }: any) {
   const scrollRef = React.useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -20,10 +22,25 @@ export default function AccountScreen({ navigation }: any) {
   const userEmail = useAppStore((state) => state.userEmail);
   const racingType = useAppStore((state) => state.racingType);
   const raceCarType = useAppStore((state) => state.raceCarType);
+  const carClass = useAppStore((state) => state.carClass);
+  const engineType = useAppStore((state) => state.engineType);
+  const fuelType = useAppStore((state) => state.fuelType);
+  const carburetorType = useAppStore((state) => state.carburetorType);
   const isTeamOwner = useAppStore((state) => state.isTeamOwner);
+  const userId = useAppStore((state) => state.userId);
+  const currentTeamRole = useAppStore((state) => state.currentTeamRole);
+  const teamMembers = useAppStore((state) => state.teamMembers);
+  const refreshTeamData = useAppStore((state) => state.refreshTeamData);
   const signOut = useAppStore((state) => state.signOut);
   const [biometricEnabled, setBiometricEnabled] = React.useState(false);
   const [biometricAvailable, setBiometricAvailable] = React.useState(false);
+  const [showSettingsTooltip, setShowSettingsTooltip] = React.useState(false);
+  const rosterRole = React.useMemo(
+    () => teamMembers.find((member) => member.userId === userId)?.role,
+    [teamMembers, userId],
+  );
+  const displayRole = rosterRole ?? currentTeamRole ?? (isTeamOwner ? "Owner" : "Crew");
+  const roleLabel = displayRole === "Crew" ? "Crew Member" : displayRole;
 
   React.useEffect(() => {
     let isMounted = true;
@@ -49,6 +66,21 @@ export default function AccountScreen({ navigation }: any) {
     };
 
     void loadBiometricState();
+    void (async () => {
+      try {
+        const hasSeenTooltip = (await AsyncStorage.getItem(ACCOUNT_SETTINGS_TOOLTIP_KEY)) === "true";
+
+        if (!isMounted) {
+          return;
+        }
+
+        setShowSettingsTooltip(!hasSeenTooltip);
+      } catch {
+        if (isMounted) {
+          setShowSettingsTooltip(true);
+        }
+      }
+    })();
 
     return () => {
       isMounted = false;
@@ -57,12 +89,16 @@ export default function AccountScreen({ navigation }: any) {
 
   useFocusEffect(
     React.useCallback(() => {
+      void refreshTeamData().catch((error) => {
+        console.warn("Unable to refresh account team data.", error);
+      });
+
       const timeout = setTimeout(() => {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
       }, 0);
 
       return () => clearTimeout(timeout);
-    }, []),
+    }, [refreshTeamData]),
   );
 
   const handleSignOut = async () => {
@@ -108,6 +144,16 @@ export default function AccountScreen({ navigation }: any) {
     setBiometricEnabled(false);
   };
 
+  const handleDismissSettingsTooltip = async () => {
+    setShowSettingsTooltip(false);
+
+    try {
+      await AsyncStorage.setItem(ACCOUNT_SETTINGS_TOOLTIP_KEY, "true");
+    } catch (error) {
+      console.warn("Unable to save account settings tooltip preference.", error);
+    }
+  };
+
   return (
     <ScrollView
       ref={scrollRef}
@@ -119,6 +165,18 @@ export default function AccountScreen({ navigation }: any) {
           style={styles.bannerImage}
           resizeMode="contain"
         />
+        {showSettingsTooltip ? (
+          <View style={styles.tooltipCard}>
+            <Text style={styles.tooltipTitle}>Update Account Info</Text>
+            <Text style={styles.tooltipBody}>
+              To edit this account information, tap the Settings icon, make your changes, then tap
+              Save Changes.
+            </Text>
+            <Pressable onPress={() => void handleDismissSettingsTooltip()} style={styles.tooltipButton}>
+              <Text style={styles.tooltipButtonText}>Got It</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <View style={styles.card}>
           <Text style={styles.label}>Team</Text>
           <Text style={styles.value}>{teamName || "Not set"}</Text>
@@ -130,13 +188,25 @@ export default function AccountScreen({ navigation }: any) {
           <Text style={styles.value}>{userEmail || "No email on file"}</Text>
 
           <Text style={styles.label}>Role</Text>
-          <Text style={styles.value}>{isTeamOwner ? "Owner" : "Crew Member"}</Text>
+          <Text style={styles.value}>{roleLabel}</Text>
 
-          <Text style={styles.label}>Racing Type</Text>
+          <Text style={styles.label}>Track Type</Text>
           <Text style={styles.value}>{racingType || "Not set"}</Text>
 
-          <Text style={styles.label}>Race Car Type</Text>
+          <Text style={styles.label}>Racing Type</Text>
           <Text style={styles.value}>{raceCarType || "Not set"}</Text>
+
+          <Text style={styles.label}>Car Class</Text>
+          <Text style={styles.value}>{carClass || "Not set"}</Text>
+
+          <Text style={styles.label}>Engine Type</Text>
+          <Text style={styles.value}>{engineType || "Not set"}</Text>
+
+          <Text style={styles.label}>Fuel Type</Text>
+          <Text style={styles.value}>{fuelType || "Not set"}</Text>
+
+          <Text style={styles.label}>Carburetor Type</Text>
+          <Text style={styles.value}>{carburetorType || "Not set"}</Text>
 
           <Pressable
             onPress={() => navigation.navigate("TeamMembers")}
@@ -192,6 +262,44 @@ const styles = StyleSheet.create({
     width: "100%",
     marginBottom: spacing(0.25),
     marginTop: spacing(1.5),
+  },
+  tooltipCard: {
+    backgroundColor: "#102947",
+    borderColor: "#1E5B94",
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: spacing(1),
+    paddingHorizontal: spacing(1.5),
+    paddingVertical: spacing(1.25),
+  },
+  tooltipTitle: {
+    color: "#8ED4FF",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.75,
+    marginBottom: spacing(0.5),
+    textAlign: "center",
+    textTransform: "uppercase",
+  },
+  tooltipBody: {
+    color: "#CBE7FA",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  tooltipButton: {
+    alignItems: "center",
+    alignSelf: "center",
+    backgroundColor: "#1780D4",
+    borderRadius: 999,
+    marginTop: spacing(1),
+    paddingHorizontal: spacing(2),
+    paddingVertical: spacing(0.75),
+  },
+  tooltipButtonText: {
+    color: "#F3FAFF",
+    fontSize: 14,
+    fontWeight: "800",
   },
   card: {
     backgroundColor: colors.card,

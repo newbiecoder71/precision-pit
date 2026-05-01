@@ -35,6 +35,7 @@ Deno.serve(async (request) => {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     const resendFromEmail = Deno.env.get("RESEND_FROM_EMAIL");
     const emailLogoUrl = Deno.env.get("EMAIL_LOGO_URL");
+    const appInstallUrl = Deno.env.get("APP_INSTALL_URL")?.trim() ?? "";
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!resendApiKey || !resendFromEmail || !supabaseUrl || !supabaseServiceRoleKey) {
@@ -85,6 +86,12 @@ Deno.serve(async (request) => {
     const teamName = invite.teams?.name || "Precision Pit";
     const acceptPath = `precisionpit://accept-invite?email=${encodeURIComponent(invite.email)}&token=${encodeURIComponent(invite.token)}&teamName=${encodeURIComponent(teamName)}`;
     const inviterEmail = user.email || "your team owner";
+    const installHtml = appInstallUrl
+      ? `
+            <p><strong>New to Precision Pit?</strong> Install the app first:</p>
+            <p><a href="${appInstallUrl}">${appInstallUrl}</a></p>
+        `
+      : "";
     const logoHtml = emailLogoUrl
       ? `
             <div style="text-align: center; margin-bottom: 20px;">
@@ -114,6 +121,7 @@ Deno.serve(async (request) => {
             ${logoHtml}
             <h2 style="color: #0D2B4F;">Precision Pit Team Invite</h2>
             <p>${inviterEmail} invited you to join <strong>${teamName}</strong> on Precision Pit.</p>
+            ${installHtml}
             <p>Open Precision Pit on your phone and tap <strong>Join Team</strong>, then use this email address:</p>
             <p style="font-size: 16px;"><strong>${invite.email}</strong></p>
             <p>If your phone supports app links, you can also try this invite link:</p>
