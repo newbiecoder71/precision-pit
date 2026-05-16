@@ -3,6 +3,10 @@
   const shotLightboxImage = document.getElementById("shot-lightbox-image");
   const shotLightboxClose = document.getElementById("shot-lightbox-close");
   const shotTriggers = Array.from(document.querySelectorAll(".shot-trigger"));
+  const videoLightbox = document.getElementById("video-lightbox");
+  const videoLightboxPlayer = document.getElementById("video-lightbox-player");
+  const videoLightboxClose = document.getElementById("video-lightbox-close");
+  const videoTriggers = Array.from(document.querySelectorAll(".video-trigger"));
   const waitlistForm = document.getElementById("waitlist-form");
   const waitlistStatus = document.getElementById("waitlist-status");
 
@@ -46,6 +50,51 @@
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !shotLightbox.hidden) {
         closeLightbox();
+      }
+    });
+  }
+
+  if (videoLightbox && videoLightboxPlayer instanceof HTMLVideoElement && videoLightboxClose) {
+    const closeVideoLightbox = () => {
+      videoLightbox.hidden = true;
+      document.body.style.overflow = "";
+      videoLightboxPlayer.pause();
+      videoLightboxPlayer.removeAttribute("src");
+      videoLightboxPlayer.load();
+    };
+
+    videoTriggers.forEach((trigger) => {
+      trigger.addEventListener("click", () => {
+        const src = trigger.getAttribute("data-video-src");
+
+        if (!src) {
+          return;
+        }
+
+        videoLightboxPlayer.setAttribute("src", src);
+        videoLightbox.hidden = false;
+        document.body.style.overflow = "hidden";
+        videoLightboxPlayer.load();
+        videoLightboxPlayer.play().catch(() => {});
+      });
+    });
+
+    videoLightbox.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      if (target.dataset.videoClose === "true") {
+        closeVideoLightbox();
+      }
+    });
+
+    videoLightboxClose.addEventListener("click", closeVideoLightbox);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !videoLightbox.hidden) {
+        closeVideoLightbox();
       }
     });
   }

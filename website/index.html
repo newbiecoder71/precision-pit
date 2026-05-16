@@ -225,6 +225,16 @@
           </div>
         </div>
 
+        <div class="shot-lightbox" id="video-lightbox" hidden>
+          <div class="shot-lightbox-backdrop" data-video-close="true"></div>
+          <div class="shot-lightbox-phone" role="dialog" aria-modal="true" aria-label="Video preview">
+            <button class="shot-lightbox-close" id="video-lightbox-close" type="button" aria-label="Close video">x</button>
+            <div class="shot-lightbox-screen video-lightbox-screen">
+              <video id="video-lightbox-player" class="video-lightbox-player" controls playsinline preload="metadata"></video>
+            </div>
+          </div>
+        </div>
+
         <div id="videos"></div>
         <section class="section" id="tutorials">
           <div class="section-heading">
@@ -238,11 +248,17 @@
 
           <div class="video-grid">
             <article class="video-card">
-              <div class="video-frame">
-                <video class="video-embed" controls preload="metadata">
+              <button
+                class="video-frame video-trigger"
+                type="button"
+                data-video-src="./media/team_invites-web.webm"
+                data-video-title="How to Send Team Invites"
+              >
+                <video class="video-embed video-preview" muted playsinline autoplay loop preload="metadata">
                   <source src="./media/team_invites-web.webm" type="video/webm" />
                 </video>
-              </div>
+                <span class="video-play-badge" aria-hidden="true"></span>
+              </button>
               <h3>How to Send Team Invites</h3>
               <p>Walk team owners through sending invite links, adding members, and getting everyone into the app quickly.</p>
               <a class="inline-link" href="./tutorials/team-invites.html">Open tutorial draft</a>
@@ -250,22 +266,34 @@
             </article>
 
             <article class="video-card">
-              <div class="video-frame">
-                <video class="video-embed" controls preload="metadata">
+              <button
+                class="video-frame video-trigger"
+                type="button"
+                data-video-src="./media/adding_events-web.webm"
+                data-video-title="How to Add Events"
+              >
+                <video class="video-embed video-preview" muted playsinline autoplay loop preload="metadata">
                   <source src="./media/adding_events-web.webm" type="video/webm" />
                 </video>
-              </div>
+                <span class="video-play-badge" aria-hidden="true"></span>
+              </button>
               <h3>How to Add Events</h3>
               <p>Show how to schedule upcoming races, choose tracks, and build out the calendar before race day arrives.</p>
               <a class="inline-link" href="./media/adding_events-web.webm">Open video file</a>
             </article>
 
             <article class="video-card">
-              <div class="video-frame">
-                <video class="video-embed" controls preload="metadata">
+              <button
+                class="video-frame video-trigger"
+                type="button"
+                data-video-src="./media/setup_team-web.webm"
+                data-video-title="How to setup your team"
+              >
+                <video class="video-embed video-preview" muted playsinline autoplay loop preload="metadata">
                   <source src="./media/setup_team-web.webm" type="video/webm" />
                 </video>
-              </div>
+                <span class="video-play-badge" aria-hidden="true"></span>
+              </button>
               <h3>How to setup your team</h3>
               <p>Guide new owners through creating the team, assigning responsibilities, and setting up a smooth shared workflow.</p>
               <a class="inline-link" href="./tutorials/create-team.html">Open tutorial draft</a>
