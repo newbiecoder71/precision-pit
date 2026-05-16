@@ -1,0 +1,252 @@
+:root {
+  --bg: #07111d;
+  --bg-soft: #0d1e33;
+  --card: rgba(12, 30, 50, 0.92);
+  --card-strong: rgba(16, 41, 71, 0.96);
+  --border: rgba(142, 212, 255, 0.2);
+  --text: #eef6ff;
+  --muted: #9bc1de;
+  --accent: #5ab3ff;
+  --accent-soft: #8ed4ff;
+  --gold: #f4c653;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top, rgba(33, 112, 186, 0.34), transparent 42%),
+    linear-gradient(180deg, #08121f 0%, #0b1930 42%, #07111d 100%);
+  color: var(--text);
+  font-family: "Inter", Arial, sans-serif;
+}
+
+body {
+  padding: 24px 18px 48px;
+}
+
+.tutorial-shell {
+  width: min(960px, 100%);
+  margin: 0 auto;
+}
+
+.tutorial-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.tutorial-back {
+  color: var(--accent-soft);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tutorial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tutorial-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #78d2ff, #43aceb);
+  color: #07213b;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 16px 34px rgba(67, 172, 235, 0.24);
+}
+
+.tutorial-button.secondary {
+  background: rgba(142, 212, 255, 0.08);
+  color: var(--accent-soft);
+  border: 1px solid rgba(142, 212, 255, 0.3);
+  box-shadow: none;
+}
+
+.tutorial-hero,
+.tutorial-section,
+.tutorial-note {
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: var(--card);
+  backdrop-filter: blur(10px);
+}
+
+.tutorial-hero {
+  padding: 30px;
+  margin-bottom: 20px;
+}
+
+.tutorial-eyebrow {
+  margin: 0 0 8px;
+  color: var(--gold);
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.tutorial-hero h1 {
+  margin: 0 0 12px;
+  font-family: "Barlow Condensed", Impact, sans-serif;
+  font-size: clamp(2.3rem, 6vw, 3.7rem);
+  line-height: 0.96;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.tutorial-hero p {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.tutorial-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.tutorial-section {
+  padding: 24px;
+}
+
+.tutorial-section h2 {
+  margin: 0 0 14px;
+  color: var(--accent-soft);
+  font-family: "Barlow Condensed", Impact, sans-serif;
+  font-size: 1.8rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.tutorial-section p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  line-height: 1.72;
+}
+
+.tutorial-steps,
+.tutorial-tips {
+  margin: 0;
+  padding-left: 22px;
+  color: var(--text);
+}
+
+.tutorial-steps li,
+.tutorial-tips li {
+  line-height: 1.72;
+}
+
+.tutorial-steps li + li,
+.tutorial-tips li + li {
+  margin-top: 10px;
+}
+
+.tutorial-note {
+  margin-top: 18px;
+  padding: 18px 22px;
+  background: var(--card-strong);
+}
+
+.tutorial-note h3 {
+  margin: 0 0 8px;
+  color: var(--accent-soft);
+  font-size: 1rem;
+}
+
+.tutorial-note p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.tutorial-footer {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  body {
+    padding: 16px 12px 32px;
+  }
+
+  .tutorial-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tutorial-actions {
+    width: 100%;
+  }
+
+  .tutorial-button,
+  .tutorial-button.secondary {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .tutorial-hero,
+  .tutorial-section {
+    padding: 20px 18px;
+  }
+}
+
+@media print {
+  body {
+    padding: 0;
+    background: #ffffff;
+    color: #111111;
+  }
+
+  .tutorial-topbar {
+    display: none;
+  }
+
+  .tutorial-shell {
+    width: 100%;
+    margin: 0;
+  }
+
+  .tutorial-hero,
+  .tutorial-section,
+  .tutorial-note {
+    background: #ffffff;
+    border: 1px solid #cfd8e3;
+    box-shadow: none;
+    backdrop-filter: none;
+    break-inside: avoid;
+  }
+
+  .tutorial-hero h1,
+  .tutorial-section h2,
+  .tutorial-note h3 {
+    color: #133d68;
+  }
+
+  .tutorial-hero p,
+  .tutorial-section p,
+  .tutorial-steps,
+  .tutorial-tips,
+  .tutorial-note p,
+  .tutorial-footer {
+    color: #1f2a35;
+  }
+}

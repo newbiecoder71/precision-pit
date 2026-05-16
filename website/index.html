@@ -18,12 +18,13 @@
   </head>
   <body>
     <div class="site-shell">
-      <header class="topbar">
-        <a class="brand" href="#top">
-          <img src="../assets/logo/app-icon1.png" alt="Precision Pit app icon" class="brand-mark" />
-          <span>Precision Pit</span>
-        </a>
+        <header class="topbar">
+          <a class="brand" href="#top">
+            <img src="./media/app-icon1-cropped.png" alt="Precision Pit app icon" class="brand-mark" />
+            <img src="./media/pp-title-splash-cropped.png" alt="Precision Pit" class="brand-title-mark" />
+          </a>
         <nav class="topnav">
+          <a href="#tutorials">Tutorials</a>
           <a href="#screenshots">Screenshots</a>
           <a href="#videos">Videos</a>
           <a href="#support">Support</a>
@@ -32,9 +33,13 @@
 
       <main id="top">
         <section class="hero">
+          <div class="hero-logo-wrap">
+            <h1 class="hero-welcome">Welcome to Precision Pit!!</h1>
+          </div>
+
           <div class="hero-copy">
             <p class="eyebrow">Race Night Organization, Trackside</p>
-            <h1>Keep the whole team on the same page before the green flag drops.</h1>
+            <h2>Keep the whole team on the same page before the green flag drops.</h2>
             <p class="hero-text">
               Precision Pit gives race teams one place for setup notes, lap times, track conditions,
               events, team invites, and shared race-night updates.
@@ -50,6 +55,7 @@
               </a>
               <a class="button button-primary" href="#videos">Watch Demo Videos</a>
               <a class="button button-secondary" href="#screenshots">View App Screens</a>
+              <a class="button button-secondary" href="#tutorials">Open Tutorials</a>
             </div>
             <ul class="hero-points">
               <li>Track-specific setup adjustments by stage</li>
@@ -61,20 +67,18 @@
           <div class="hero-visual">
             <div class="phone-promo-card">
               <div class="promo-copy">
-                <p class="promo-label">Trackside Promo Video</p>
-                <h2>Phone In Hand. Cars In The Background.</h2>
+                <p class="promo-label">Precision Pit In Action</p>
+                <h2>See the app come to life before race night even begins.</h2>
                 <p>
-                  This promo block now uses your real YouTube Shorts promo so visitors can see
-                  Precision Pit in a real trackside setting.
+                  Watch Precision Pit open right inside the phone frame so visitors immediately get
+                  a feel for the app, the branding, and the race-night workflow.
                 </p>
                 <p>
                   <a
                     class="inline-link"
-                    href="https://youtube.com/shorts/QeNI9cp36d4?si=X9bwl174t6SHRh-Z"
-                    target="_blank"
-                    rel="noreferrer"
+                    href="#videos"
                   >
-                    Open trackside promo video
+                    Jump down to the video section
                   </a>
                 </p>
               </div>
@@ -83,14 +87,16 @@
                 <div class="mock-phone">
                   <div class="mock-phone-notch"></div>
                   <div class="mock-phone-screen">
-                    <iframe
+                    <video
+                      id="promo-video"
                       class="promo-video-embed"
-                      src="https://www.youtube-nocookie.com/embed/QeNI9cp36d4?autoplay=1&mute=1&controls=0&loop=1&playlist=QeNI9cp36d4&playsinline=1&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
-                      title="Precision Pit trackside promo"
-                      loading="lazy"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowfullscreen
-                    ></iframe>
+                      autoplay
+                      muted
+                      playsinline
+                      preload="metadata"
+                    >
+                      <source src="./media/Screen_recording_20260414_144135.webm" type="video/webm" />
+                    </video>
                   </div>
                 </div>
               </div>
@@ -98,7 +104,7 @@
           </div>
         </section>
 
-        <section class="section">
+        <section class="section feature-overlap-section">
           <div class="section-heading">
             <p class="eyebrow">Built For Race Teams</p>
             <h2>Everything a crew needs, from scheduling to setup changes.</h2>
@@ -131,112 +137,155 @@
         <section class="section" id="screenshots">
           <div class="section-heading">
             <p class="eyebrow">App Screenshots</p>
-            <h2>Show the app before a team ever downloads it.</h2>
+            <h2>Give every team a clear look at what race night management feels like.</h2>
             <p class="section-copy">
-              These screenshot slots are ready for your real app captures. Drop your phone screenshots
-              into the `website/media/` folder and update the filenames when you’re ready.
+              From the dashboard to team invites, these screens show how Precision Pit keeps race-day
+              planning, setup tracking, and crew communication organized in one place.
             </p>
           </div>
 
           <div class="screenshot-grid">
             <article class="shot-card">
               <div class="shot-frame">
-                <div class="shot-placeholder">Home Dashboard Screenshot</div>
+                <img
+                  src="./media/racing_dashboard%20(2).png"
+                  alt="Precision Pit home dashboard screenshot"
+                  class="shot-image"
+                />
               </div>
               <h3>Dashboard</h3>
-              <p>Show the current race, recent result, and quick actions.</p>
+              <p>See the next race at a glance, jump into key actions, and keep the team focused on what comes next.</p>
             </article>
 
             <article class="shot-card">
               <div class="shot-frame">
-                <div class="shot-placeholder">Race Night Screenshot</div>
+                <img
+                  src="./media/current_open_race.png"
+                  alt="Precision Pit race night screenshot"
+                  class="shot-image"
+                />
               </div>
               <h3>Race Night</h3>
-              <p>Highlight the stage tabs, section buttons, and setup entry fields.</p>
+              <p>Track each stage of the night with organized setup entries, quick section access, and race-specific notes.</p>
             </article>
 
             <article class="shot-card">
               <div class="shot-frame">
-                <div class="shot-placeholder">Setups Screenshot</div>
+                <img
+                  src="./media/setups_screen.png"
+                  alt="Precision Pit baseline setups screenshot"
+                  class="shot-image"
+                />
               </div>
               <h3>Baseline Setups</h3>
-              <p>Show the Chassis, Suspension, Tires & Wheels, and Gears setup pages.</p>
+              <p>Build a dependable baseline for chassis, suspension, tires, and driveline settings before the trailer ever leaves.</p>
             </article>
 
             <article class="shot-card">
               <div class="shot-frame">
-                <div class="shot-placeholder">Team Screen Screenshot</div>
+                <img
+                  src="./media/team_invite.png"
+                  alt="Precision Pit team management screenshot"
+                  class="shot-image"
+                />
               </div>
               <h3>Team Management</h3>
-              <p>Show invites, roles, and how the crew stays connected.</p>
+              <p>Invite drivers and crew, assign roles, and keep the whole team connected around the same race-night data.</p>
             </article>
           </div>
         </section>
 
-        <section class="section" id="videos">
+        <div id="videos"></div>
+        <section class="section" id="tutorials">
           <div class="section-heading">
             <p class="eyebrow">Video Library</p>
-            <h2>Teach teams how to use the app with short walkthroughs.</h2>
+            <h2>Help new teams get comfortable with Precision Pit in just a few minutes.</h2>
             <p class="section-copy">
-              The cards below are wired for real videos later. You can host MP4 files locally, on
-              YouTube, or on Vimeo and swap the links in one place.
+              These walkthroughs are built to answer the first questions teams usually have, from
+              sending invites to setting up race nights and getting the whole crew ready to work.
             </p>
           </div>
 
           <div class="video-grid">
             <article class="video-card">
-              <div class="video-placeholder">
-                <span>Video Placeholder</span>
+              <div class="video-frame">
+                <video class="video-embed" controls preload="metadata">
+                  <source src="./media/team_invites.webm" type="video/webm" />
+                </video>
               </div>
               <h3>How to Send Team Invites</h3>
-              <p>Show owners how to invite drivers and crew members by email or text link.</p>
-              <a class="inline-link" href="./media/README.md">Add video file</a>
+              <p>Walk team owners through sending invite links, adding members, and getting everyone into the app quickly.</p>
+              <a class="inline-link" href="./tutorials/team-invites.html">Open tutorial draft</a>
+              <a class="inline-link" href="./media/team_invites.webm">Open video file</a>
+            </article>
+
+            <article class="video-card">
+              <div class="video-frame">
+                <video class="video-embed" controls preload="metadata">
+                  <source src="./media/adding_events.webm" type="video/webm" />
+                </video>
+              </div>
+              <h3>How to Add Events</h3>
+              <p>Show how to schedule upcoming races, choose tracks, and build out the calendar before race day arrives.</p>
+              <a class="inline-link" href="./media/adding_events.webm">Open video file</a>
+            </article>
+
+            <article class="video-card">
+              <div class="video-frame">
+                <video class="video-embed" controls preload="metadata">
+                  <source src="./media/setup_team.webm" type="video/webm" />
+                </video>
+              </div>
+              <h3>How to setup your team</h3>
+              <p>Guide new owners through creating the team, assigning responsibilities, and setting up a smooth shared workflow.</p>
+              <a class="inline-link" href="./tutorials/create-team.html">Open tutorial draft</a>
+              <a class="inline-link" href="./media/setup_team.webm">Open video file</a>
             </article>
 
             <article class="video-card">
               <div class="video-placeholder">
-                <span>Video Placeholder</span>
+                <span>Settings Tutorial</span>
               </div>
-              <h3>How to Add Events</h3>
-              <p>Walk teams through scheduling races, selecting tracks, and opening event details.</p>
-              <a class="inline-link" href="./media/README.md">Add video file</a>
+              <h3>How to Set Up Team Settings</h3>
+              <p>Show owners how to finish team details, baseline settings, and the saved information the crew will rely on later.</p>
+              <a class="inline-link" href="./tutorials/team-settings.html">Open tutorial draft</a>
             </article>
 
-            <article class="video-card">
+            <!-- <article class="video-card">
               <div class="video-placeholder">
                 <span>Video Placeholder</span>
               </div>
               <h3>How to Contact Support</h3>
-              <p>Show where teams can find support details, app version info, and help resources.</p>
+              <p>Point users to support, version details, and the fastest path to help when they need it.</p>
               <a class="inline-link" href="./media/README.md">Add video file</a>
-            </article>
+            </article> -->
           </div>
         </section>
 
         <section class="section promo-section">
           <div class="section-heading">
-            <p class="eyebrow">Promo Video Idea</p>
-            <h2>The race-track visual you described is exactly the kind of asset this site should use.</h2>
+            <p class="eyebrow">Trackside Experience</p>
+            <h2>Precision Pit is built for real crews, real race nights, and real trackside decisions.</h2>
           </div>
 
           <div class="promo-brief">
             <div class="promo-brief-copy">
-              <h3>Recommended Hero Video Shot List</h3>
+              <h3>What Teams Can Expect</h3>
               <ul>
-                <li>Driver or crew member holding a phone with Precision Pit open</li>
-                <li>Dirt or asphalt track visible behind them with cars in motion</li>
-                <li>Close-up angle first, then a wider trackside shot</li>
-                <li>Short clips showing Dashboard, Race Night, and Setup screens</li>
+                <li>One shared place for race nights, setup notes, and team coordination</li>
+                <li>Fast access to the current event, stage changes, and saved baselines</li>
+                <li>Cleaner communication between owners, drivers, and crew members</li>
+                <li>Less guesswork when it is time to review what changed at the track</li>
               </ul>
             </div>
 
             <div class="promo-brief-copy">
-              <h3>Best Format</h3>
+              <h3>Why It Matters</h3>
               <ul>
-                <li>Portrait and landscape versions if possible</li>
-                <li>10 to 20 seconds is enough for a homepage hero loop</li>
-                <li>Muted background video with a separate voiceover tutorial</li>
-                <li>Use the video as the top hero once you have the final footage</li>
+                <li>Teams can prepare before race day instead of scrambling in the pits</li>
+                <li>Race-night setup changes stay organized from Hot Laps to the Feature</li>
+                <li>New members can get connected quickly with invites and shared access</li>
+                <li>Support, tutorials, and install paths are all easy to find in one place</li>
               </ul>
             </div>
           </div>
@@ -245,11 +294,11 @@
         <section class="section support-section" id="support">
           <div class="section-heading">
             <p class="eyebrow">Support</p>
-            <h2>Give teams one simple place to get help.</h2>
+            <h2>Make it easy for every team member to know where to go for help.</h2>
           </div>
 
           <div class="support-card">
-            <div>
+            <div class="support-copy">
               <h3>Contact Precision Pit Support</h3>
               <p>
                 Questions about accounts, team setup, invites, or future features can be directed to
@@ -257,12 +306,50 @@
               </p>
             </div>
             <div class="support-meta">
-              <a class="support-link" href="mailto:support@precision-pit.com">support@precision-pit.com</a>
+              <a class="support-link support-button" href="mailto:support@precision-pit.com">
+                support@precision-pit.com
+              </a>
               <span class="support-badge">Version 1.0.0</span>
             </div>
+          </div>
+
+          <div class="store-badges">
+            <a class="store-badge-link" href="#" aria-label="Download Precision Pit on the App Store">
+              <img
+                src="./media/app-store-badge.svg"
+                alt="Download on the App Store"
+                class="store-badge-image"
+              />
+            </a>
+            <a class="store-badge-link" href="#" aria-label="Get Precision Pit on Google Play">
+              <img
+                src="./media/google-play-badge.svg"
+                alt="Get it on Google Play"
+                class="store-badge-image"
+              />
+            </a>
           </div>
         </section>
       </main>
     </div>
+    <script>
+      (function () {
+        const promoVideo = document.getElementById("promo-video");
+        const clipStart = 3.6;
+
+        if (!promoVideo) return;
+
+        promoVideo.addEventListener("loadedmetadata", () => {
+          promoVideo.currentTime = clipStart;
+          promoVideo.play().catch(() => {});
+        });
+
+        promoVideo.addEventListener("ended", () => {
+          promoVideo.currentTime = clipStart;
+          promoVideo.play().catch(() => {});
+        });
+      })();
+    </script>
   </body>
 </html>
+

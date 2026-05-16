@@ -15,6 +15,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
+import { Ionicons } from "@expo/vector-icons";
 import TextInput from "../components/AppTextInput";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -32,6 +33,7 @@ export default function LoginScreen() {
   const storedEmail = useAppStore((state) => state.userEmail);
   const [email, setEmail] = useState(storedEmail ?? "");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [biometricReady, setBiometricReady] = useState(false);
   const [isBiometricLoading, setIsBiometricLoading] = useState(true);
@@ -231,15 +233,28 @@ export default function LoginScreen() {
               onChangeText={setEmail}
             />
 
-            <TextInput
-              ref={passwordInputRef}
-              secureTextEntry
-              style={[styles.input, webTextCursor]}
-              placeholder="Password"
-              placeholderTextColor="#4F7390"
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.passwordFieldWrap}>
+              <TextInput
+                ref={passwordInputRef}
+                secureTextEntry={!showPassword}
+                style={[styles.input, styles.passwordInput, webTextCursor]}
+                placeholder="Password"
+                placeholderTextColor="#4F7390"
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Pressable
+                onPress={() => setShowPassword((current) => !current)}
+                style={styles.passwordToggle}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  size={22}
+                  color="#8ED4FF"
+                />
+              </Pressable>
+            </View>
 
             <Pressable
               onPress={() => setRememberMe((current) => !current)}
@@ -350,6 +365,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 14,
+  },
+  passwordFieldWrap: {
+    position: "relative",
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  passwordToggle: {
+    alignItems: "center",
+    height: 44,
+    justifyContent: "center",
+    position: "absolute",
+    right: 12,
+    top: 6,
+    width: 32,
   },
   linkRow: {
     alignSelf: "flex-end",

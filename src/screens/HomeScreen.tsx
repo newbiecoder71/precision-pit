@@ -198,11 +198,12 @@ export default function HomeScreen({ navigation }: any) {
   };
 
   const upcomingCountdown = useMemo(() => {
-    if (activeRaceNight || !upcomingEvent) {
+    const countdownSource = activeRaceNight ?? upcomingEvent;
+    if (!countdownSource) {
       return undefined;
     }
 
-    const eventDate = parseStoredDate(upcomingEvent.eventDate);
+    const eventDate = parseStoredDate(countdownSource.eventDate);
     const today = new Date();
     const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const normalizedEventDate = new Date(

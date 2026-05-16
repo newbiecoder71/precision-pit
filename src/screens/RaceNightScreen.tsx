@@ -1078,31 +1078,36 @@ export default function RaceNightScreen({ navigation, route }: any) {
   };
 
   const handleChassisMeasurementBlur = (fieldKey: ChassisFieldKey) => {
-    markLocalRaceNightEdit();
-    setDraftRaceNight((current) => {
-      if (!current) {
-        return current;
-      }
+    handleRaceNightInputBlur();
 
-      return {
-        ...current,
-        stageSessions: {
-          ...current.stageSessions,
-          [activeStage]: {
-            ...current.stageSessions[activeStage],
-            started: true,
-            setupAdjustments: {
-              ...current.stageSessions[activeStage].setupAdjustments,
-              chassis: {
-                ...current.stageSessions[activeStage].setupAdjustments.chassis,
-                [fieldKey]: normalizeFractionMeasurementInput(
-                  current.stageSessions[activeStage].setupAdjustments.chassis[fieldKey],
-                ),
-              },
+    if (!draftRaceNight) {
+      return;
+    }
+
+    markLocalRaceNightEdit();
+    const nextDraftRaceNight = {
+      ...draftRaceNight,
+      stageSessions: {
+        ...draftRaceNight.stageSessions,
+        [activeStage]: {
+          ...draftRaceNight.stageSessions[activeStage],
+          started: true,
+          setupAdjustments: {
+            ...draftRaceNight.stageSessions[activeStage].setupAdjustments,
+            chassis: {
+              ...draftRaceNight.stageSessions[activeStage].setupAdjustments.chassis,
+              [fieldKey]: normalizeFractionMeasurementInput(
+                draftRaceNight.stageSessions[activeStage].setupAdjustments.chassis[fieldKey],
+              ),
             },
           },
         },
-      };
+      },
+    };
+
+    setDraftRaceNight(nextDraftRaceNight);
+    void saveRaceNight(raceNightId, nextDraftRaceNight).catch((error) => {
+      console.warn("Unable to sync chassis measurement change.", error);
     });
   };
 

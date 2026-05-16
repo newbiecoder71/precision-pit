@@ -9,9 +9,7 @@ export default function SetupsScreen({ navigation }: any) {
   const scrollRef = React.useRef<ScrollView>(null);
   const {
     userName,
-    racingType,
     raceCarType,
-    carClass,
     chassisSetup,
     suspensionSetup,
     tireSetup,
@@ -54,15 +52,6 @@ export default function SetupsScreen({ navigation }: any) {
       </Text>
 
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>Track Type</Text>
-        <Text style={styles.summaryValue}>{racingType || "Not set yet"}</Text>
-
-        <Text style={styles.summaryLabel}>Racing Type</Text>
-        <Text style={styles.summaryValue}>{raceCarType || "Not set yet"}</Text>
-
-        <Text style={styles.summaryLabel}>Car Class</Text>
-        <Text style={styles.summaryValue}>{carClass || "Not set yet"}</Text>
-
         <Text style={styles.summaryHelp}>
           Tap each setup element below to open its page and enter the team&apos;s baseline
           settings.

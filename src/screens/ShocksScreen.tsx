@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   Image,
+  Keyboard,
   Pressable,
+  GestureResponderEvent,
   StyleSheet,
   Text,
   View,
@@ -141,22 +143,34 @@ export default function ShocksScreen() {
     }
   };
 
+  const dismissKeyboardOnBackgroundTap = (event: GestureResponderEvent) => {
+    if (event.target === event.currentTarget) {
+      Keyboard.dismiss();
+    }
+  };
+
   return (
-    <KeyboardScreen contentContainerStyle={styles.container}>
-      <Image
-        source={require("../../assets/icons/shocks.png")}
-        style={styles.bannerImage}
-        resizeMode="contain"
-      />
+    <KeyboardScreen contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <View onStartShouldSetResponder={() => true} onResponderRelease={dismissKeyboardOnBackgroundTap}>
+        <Image
+          source={require("../../assets/icons/shocks.png")}
+          style={styles.bannerImage}
+          resizeMode="contain"
+        />
 
-      {userName ? <Text style={styles.welcomeText}>{`Welcome, ${userName}!`}</Text> : null}
-      <Text style={styles.pageTitle}>Suspension</Text>
-      <Text style={styles.p}>
-        Save your baseline front and rear suspension settings here so race-night changes have a
-        clean starting point.
-      </Text>
+        {userName ? <Text style={styles.welcomeText}>{`Welcome, ${userName}!`}</Text> : null}
+        <Text style={styles.pageTitle}>Suspension</Text>
+        <Text style={styles.p}>
+          Save your baseline front and rear suspension settings here so race-night changes have a
+          clean starting point.
+        </Text>
+      </View>
 
-      <View style={styles.card}>
+      <View
+        style={styles.card}
+        onStartShouldSetResponder={() => true}
+        onResponderRelease={dismissKeyboardOnBackgroundTap}
+      >
         <Text style={styles.sectionTitle}>Front Suspension</Text>
         {frontSuspensionFields.map((field) => (
           <SuspensionFieldInput
@@ -168,7 +182,11 @@ export default function ShocksScreen() {
         ))}
       </View>
 
-      <View style={styles.card}>
+      <View
+        style={styles.card}
+        onStartShouldSetResponder={() => true}
+        onResponderRelease={dismissKeyboardOnBackgroundTap}
+      >
         <Text style={styles.sectionTitle}>Rear Suspension</Text>
         {rearSuspensionFields.map((field) => (
           <SuspensionFieldInput

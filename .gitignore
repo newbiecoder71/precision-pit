@@ -34,6 +34,13 @@ yarn-error.*
 .env
 .env*.local
 
+# JetBrains / Android Studio
+.idea/
+*.iml
+
+# Supabase local temp files
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 

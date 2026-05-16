@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAppStore } from "../store/useAppStore";
@@ -33,6 +33,7 @@ export default function PastRacesScreen({ navigation }: any) {
   const scrollRef = React.useRef<ScrollView>(null);
   const raceNights = useAppStore((state) => state.raceNights);
   const saveRaceNight = useAppStore((state) => state.saveRaceNight);
+  const [selectedYear, setSelectedYear] = useState<number | "all">("all");
   const today = useMemo(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -56,6 +57,24 @@ export default function PastRacesScreen({ navigation }: any) {
     [raceNights, today],
   );
 
+  const availableYears = useMemo(
+    () =>
+      [...new Set(pastRaceNights.map((night) => parseStoredDate(night.eventDate).getFullYear()))].sort(
+        (a, b) => b - a,
+      ),
+    [pastRaceNights],
+  );
+
+  const visiblePastRaceNights = useMemo(() => {
+    if (selectedYear === "all") {
+      return pastRaceNights;
+    }
+
+    return pastRaceNights.filter(
+      (night) => parseStoredDate(night.eventDate).getFullYear() === selectedYear,
+    );
+  }, [pastRaceNights, selectedYear]);
+
   useFocusEffect(
     React.useCallback(() => {
       const timeout = setTimeout(() => {
@@ -73,9 +92,37 @@ export default function PastRacesScreen({ navigation }: any) {
         Reopen any saved race night to review the details from prior race nights.
       </Text>
 
+      {availableYears.length ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.yearFilterRow}
+        >
+          <Pressable
+            onPress={() => setSelectedYear("all")}
+            style={[styles.yearChip, selectedYear === "all" ? styles.yearChipActive : undefined]}
+          >
+            <Text style={[styles.yearChipText, selectedYear === "all" ? styles.yearChipTextActive : undefined]}>
+              All
+            </Text>
+          </Pressable>
+          {availableYears.map((year) => (
+            <Pressable
+              key={year}
+              onPress={() => setSelectedYear(year)}
+              style={[styles.yearChip, selectedYear === year ? styles.yearChipActive : undefined]}
+            >
+              <Text style={[styles.yearChipText, selectedYear === year ? styles.yearChipTextActive : undefined]}>
+                {year}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
       <View style={styles.card}>
-        {pastRaceNights.length ? (
-          pastRaceNights.map((night) => {
+        {visiblePastRaceNights.length ? (
+          visiblePastRaceNights.map((night) => {
             const eventTime = parseStoredDate(night.eventDate).setHours(0, 0, 0, 0);
             const isPastDate = eventTime < today;
             const hasRainoutMarker = night.status === "rainout" || Boolean(night.rainoutStage);
@@ -168,7 +215,11 @@ export default function PastRacesScreen({ navigation }: any) {
             );
           })
         ) : (
-          <Text style={styles.emptyText}>No race nights saved yet.</Text>
+          <Text style={styles.emptyText}>
+            {pastRaceNights.length
+              ? "No race nights were saved for the selected year."
+              : "No race nights saved yet."}
+          </Text>
         )}
       </View>
     </ScrollView>
@@ -194,6 +245,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     marginBottom: spacing(2),
+  },
+  yearFilterRow: {
+    gap: spacing(1),
+    marginBottom: spacing(1.5),
+    paddingRight: spacing(1),
+  },
+  yearChip: {
+    alignItems: "center",
+    backgroundColor: "#0E223B",
+    borderColor: "#21486A",
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: "center",
+    minWidth: 68,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  yearChipActive: {
+    backgroundColor: "#1780D4",
+    borderColor: "#8ED4FF",
+  },
+  yearChipText: {
+    color: "#8ED4FF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  yearChipTextActive: {
+    color: "#F3FAFF",
   },
   card: {
     backgroundColor: colors.card,

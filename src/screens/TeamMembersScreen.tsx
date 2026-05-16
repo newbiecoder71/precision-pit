@@ -193,7 +193,7 @@ export default function TeamMembersScreen({ navigation }: any) {
             <View key={invite.id} style={styles.row}>
               <View style={styles.memberInfo}>
                 <Text style={styles.name}>{invite.email}</Text>
-                <Text style={styles.email}>Waiting for invite acceptance</Text>
+                <Text style={styles.email}>{invite.role} role selected</Text>
               </View>
               <View style={styles.pendingActions}>
                 <Text style={styles.pending}>Pending</Text>

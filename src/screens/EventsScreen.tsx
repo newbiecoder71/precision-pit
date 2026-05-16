@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TouchableWithoutFeedback, View } from "react-native";
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
 import DatePickerModal from "../components/DatePickerModal";
@@ -25,6 +25,7 @@ export default function EventsScreen({ navigation, route }: any) {
   const [showTrackMenu, setShowTrackMenu] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAllEvents, setShowAllEvents] = useState(false);
+  const [dismissedPopularTrack, setDismissedPopularTrack] = useState(false);
 
   const sortedEvents = useMemo(
     () => [...raceEvents].sort((a, b) => getDateSortValue(a.eventDate) - getDateSortValue(b.eventDate)),
@@ -77,11 +78,27 @@ export default function EventsScreen({ navigation, route }: any) {
     return dirtOvalTracks;
   }, [racingType]);
 
+  const filteredTracks = useMemo(() => {
+    if (!availableTracks.length) {
+      return [];
+    }
+
+    const search = trackName.trim().toLowerCase();
+    if (!search) {
+      return availableTracks;
+    }
+
+    return availableTracks.filter((track) =>
+      [track.name, track.city, track.state].some((value) => value.toLowerCase().includes(search)),
+    );
+  }, [availableTracks, trackName]);
+
   useEffect(() => {
     setTitle("");
     setTrackName("");
     setEventDate("");
     setShowTrackMenu(false);
+    setDismissedPopularTrack(false);
   }, [teamId]);
 
   useEffect(() => {
@@ -90,14 +107,13 @@ export default function EventsScreen({ navigation, route }: any) {
     }
 
     if (!hasRaceHistory) {
-      setTrackName("");
       return;
     }
 
-    if (!trackName.trim() && popularTrack) {
+    if (!dismissedPopularTrack && !trackName.trim() && popularTrack) {
       setTrackName(popularTrack);
     }
-  }, [hasRaceHistory, popularTrack, showAddEvent, trackName]);
+  }, [dismissedPopularTrack, hasRaceHistory, popularTrack, showAddEvent, trackName]);
 
   useEffect(() => {
     if (route.params?.showAddEvent) {
@@ -158,6 +174,7 @@ export default function EventsScreen({ navigation, route }: any) {
       setEventDate("");
       setShowTrackMenu(false);
       setShowAddEvent(false);
+      setDismissedPopularTrack(false);
       Alert.alert("Saved", "The event was added to the team schedule.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to create the event.";
@@ -242,6 +259,15 @@ export default function EventsScreen({ navigation, route }: any) {
     }
 
     await openSelectedEvent();
+  };
+
+  const handleCancelAddEvent = () => {
+    setTitle("");
+    setTrackName("");
+    setEventDate("");
+    setShowTrackMenu(false);
+    setDismissedPopularTrack(false);
+    setShowAddEvent(false);
   };
 
   const renderEventRow = (
@@ -334,152 +360,236 @@ export default function EventsScreen({ navigation, route }: any) {
   };
 
   return (
-    <KeyboardScreen style={styles.container} contentContainerStyle={styles.content}>
-      <Image
-        source={require("../../assets/icons/events.png")}
-        style={styles.bannerImage}
-        resizeMode="contain"
-      />
-      <Text style={styles.h1}>Events</Text>
-      <Text style={styles.subhead}>
-        Keep the next few race dates in view, then open an event and start race night when the
-        team gets to the track.
-      </Text>
-
-      <View style={styles.card}>
+    <TouchableWithoutFeedback
+      accessible={false}
+      onPress={() => {
+        Keyboard.dismiss();
+        setShowTrackMenu(false);
+      }}
+    >
+      <KeyboardScreen
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <Pressable
           onPress={() => {
-            setShowAddEvent((current) => !current);
+            Keyboard.dismiss();
             setShowTrackMenu(false);
           }}
-          style={styles.expandButton}
         >
-          <Text style={styles.expandButtonText}>{showAddEvent ? "Hide Add Event" : "Add Event"}</Text>
-          <Text style={styles.fieldIcon}>{showAddEvent ? "^" : "v"}</Text>
+          <Image
+            source={require("../../assets/icons/events.png")}
+            style={styles.bannerImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.h1}>Events</Text>
+          <Text style={styles.subhead}>
+            Keep the next few race dates in view, then open an event and start race night when the
+            team gets to the track.
+          </Text>
         </Pressable>
 
-        {showAddEvent ? (
-          <>
-            <Text style={styles.sectionTitle}>Add Event</Text>
-            {popularTrack ? (
-              <Text style={styles.helper}>Most-used track auto-filled: {popularTrack}</Text>
-            ) : null}
-            <TextInput
-              style={styles.input}
-              placeholder="Event name"
-              placeholderTextColor="#4F7390"
-              value={title}
-              onChangeText={setTitle}
-            />
-
-            <Text style={styles.label}>Track</Text>
-            <Pressable
-              onPress={() => {
-                if (availableTracks.length === 0) {
-                  return;
+        <View style={styles.card}>
+          <Pressable
+            onPress={() => {
+              setShowAddEvent((current) => {
+                const nextValue = !current;
+                if (nextValue) {
+                  setDismissedPopularTrack(false);
                 }
+                return nextValue;
+              });
+              setShowTrackMenu(false);
+            }}
+            style={styles.expandButton}
+          >
+            <Text style={styles.expandButtonText}>{showAddEvent ? "Hide Add Event" : "Add Event"}</Text>
+            <Text style={styles.fieldIcon}>{showAddEvent ? "^" : "v"}</Text>
+          </Pressable>
 
-                setShowTrackMenu((current) => !current);
-              }}
-              style={[
-                styles.fieldButton,
-                availableTracks.length === 0 ? styles.dropdownButtonDisabled : undefined,
-              ]}
-            >
-              <Text style={trackName ? styles.fieldValue : styles.fieldPlaceholder}>
-                {trackName || "Select track"}
-              </Text>
-              <Text style={styles.fieldIcon}>{showTrackMenu ? "^" : "v"}</Text>
-            </Pressable>
+          {showAddEvent ? (
+            <>
+              <Text style={styles.sectionTitle}>Add Event</Text>
+              {popularTrack ? (
+                <Text style={styles.helper}>Most-used track auto-filled: {popularTrack}</Text>
+              ) : null}
+              <TextInput
+                style={styles.input}
+                placeholder="Event name"
+                placeholderTextColor="#4F7390"
+                value={title}
+                onFocus={() => setShowTrackMenu(false)}
+                onChangeText={setTitle}
+              />
 
-            {showTrackMenu ? (
-              <View style={styles.menuCard}>
-                <ScrollView nestedScrollEnabled style={styles.trackMenuScroll}>
-                  {availableTracks.map((track) => (
-                    <Pressable
-                      key={`${track.name}-${track.state}`}
-                      onPress={() => {
-                        setTrackName(track.name);
-                        setShowTrackMenu(false);
-                      }}
-                      style={styles.menuRow}
-                    >
-                      <View style={styles.menuCopy}>
-                        <Text style={styles.menuName}>{track.name}</Text>
-                        <Text style={styles.menuLocation}>
-                          {track.city}, {track.state}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            <Text style={styles.label}>Event Date</Text>
-            <View style={styles.dateRow}>
-              <Pressable
-                onPress={() => setShowDatePicker(true)}
-                style={[styles.fieldButton, styles.dateFieldButton]}
-              >
-                <Text style={eventDate ? styles.fieldValue : styles.fieldPlaceholder}>
-                  {eventDate || "Select event date"}
-                </Text>
-                {eventDate ? (
-                  <Pressable onPress={() => setEventDate("")} style={styles.dateClearInlineButton}>
-                    <Text style={styles.dateClearInlineButtonText}>x</Text>
+              <Text style={styles.label}>Track</Text>
+              <View style={styles.trackInputWrap}>
+                <TextInput
+                  style={[styles.input, styles.trackInput]}
+                  placeholder="Track name"
+                  placeholderTextColor="#4F7390"
+                  value={trackName}
+                  onFocus={() => {
+                    if (availableTracks.length) {
+                      setShowTrackMenu(true);
+                    }
+                  }}
+                  onChangeText={(value) => {
+                    if (!value.trim()) {
+                      setDismissedPopularTrack(true);
+                    }
+                    setTrackName(value);
+                    setShowTrackMenu(availableTracks.length > 0);
+                  }}
+                />
+                {trackName ? (
+                  <Pressable
+                    onPress={() => {
+                      setDismissedPopularTrack(true);
+                      setTrackName("");
+                      setShowTrackMenu(false);
+                    }}
+                    style={styles.trackClearButton}
+                  >
+                    <Text style={styles.trackClearButtonText}>x</Text>
                   </Pressable>
                 ) : null}
-              </Pressable>
-              <Pressable onPress={() => setShowDatePicker(true)} style={styles.dateIconButton}>
-                <Text style={styles.dateIconButtonText}>{"\uD83D\uDCC5"}</Text>
-              </Pressable>
-            </View>
+              </View>
 
-            <Pressable onPress={handleCreateEvent} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Add To Schedule</Text>
-            </Pressable>
-          </>
-        ) : null}
-      </View>
+              {showTrackMenu && availableTracks.length ? (
+                <View style={styles.menuCard}>
+                  <ScrollView
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                    style={styles.trackMenuScroll}
+                  >
+                    {filteredTracks.length ? (
+                      filteredTracks.map((track) => (
+                        <Pressable
+                          key={`${track.name}-${track.state}`}
+                          onPress={() => {
+                            setTrackName(track.name);
+                            setShowTrackMenu(false);
+                          }}
+                          style={styles.menuRow}
+                        >
+                          <View style={styles.menuCopy}>
+                            <Text style={styles.menuName}>{track.name}</Text>
+                            <Text style={styles.menuLocation}>
+                              {track.city}, {track.state}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      ))
+                    ) : (
+                      <Pressable
+                        onPress={() => {
+                          setShowTrackMenu(false);
+                        }}
+                        style={styles.menuRow}
+                      >
+                        <Text style={styles.emptyText}>No tracks matched that search.</Text>
+                      </Pressable>
+                    )}
+                  </ScrollView>
+                </View>
+              ) : null}
 
-      <View style={styles.card}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Upcoming Races</Text>
-          <Pressable onPress={() => setShowAllEvents((current) => !current)}>
-            <Text style={styles.inlineLinkText}>
-              {showAllEvents ? "Hide All" : "See All"}
-            </Text>
-          </Pressable>
+              <Text style={styles.label}>Event Date</Text>
+              <View style={styles.dateRow}>
+                <Pressable
+                  onPress={() => {
+                    setShowTrackMenu(false);
+                    setShowDatePicker(true);
+                  }}
+                  style={[styles.fieldButton, styles.dateFieldButton]}
+                >
+                  <Text style={eventDate ? styles.fieldValue : styles.fieldPlaceholder}>
+                    {eventDate || "Select event date"}
+                  </Text>
+                  {eventDate ? (
+                    <Pressable
+                      onPress={() => {
+                        setShowTrackMenu(false);
+                        setEventDate("");
+                      }}
+                      style={styles.dateClearInlineButton}
+                    >
+                      <Text style={styles.dateClearInlineButtonText}>x</Text>
+                    </Pressable>
+                  ) : null}
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setShowTrackMenu(false);
+                    setShowDatePicker(true);
+                  }}
+                  style={styles.dateIconButton}
+                >
+                  <Text style={styles.dateIconButtonText}>{"\uD83D\uDCC5"}</Text>
+                </Pressable>
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  setShowTrackMenu(false);
+                  void handleCreateEvent();
+                }}
+                style={styles.primaryButton}
+              >
+                <Text style={styles.primaryButtonText}>Add To Schedule</Text>
+              </Pressable>
+
+              <Pressable onPress={handleCancelAddEvent} style={styles.secondaryButtonCompact}>
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
-        {visibleUpcomingEvents.length ? (
-          visibleUpcomingEvents.map((event) =>
-            renderEventRow(event.id, event.title, event.trackName, event.eventDate, {
-              deemphasized: false,
-              allowDelete: true,
-            }),
-          )
-        ) : (
-          <Text style={styles.emptyText}>No scheduled race events yet.</Text>
-        )}
-      </View>
+        <View style={styles.card}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Upcoming Races</Text>
+            <Pressable onPress={() => setShowAllEvents((current) => !current)}>
+              <Text style={styles.inlineLinkText}>
+                {showAllEvents ? "Hide All" : "See All"}
+              </Text>
+            </Pressable>
+          </View>
 
-      <Pressable
-        onPress={() => navigation.getParent()?.navigate("PastRaces")}
-        style={styles.secondaryButton}
-      >
-        <Text style={styles.secondaryButtonText}>Past Races</Text>
-      </Pressable>
+          {visibleUpcomingEvents.length ? (
+            visibleUpcomingEvents.map((event) =>
+              renderEventRow(event.id, event.title, event.trackName, event.eventDate, {
+                deemphasized: false,
+                allowDelete: true,
+              }),
+            )
+          ) : (
+            <Text style={styles.emptyText}>No scheduled race events yet.</Text>
+          )}
+        </View>
 
-      <DatePickerModal
-        visible={showDatePicker}
-        initialDate={eventDate}
-        scheduledDates={scheduledDateValues}
-        onClose={() => setShowDatePicker(false)}
-        onSelectDate={setEventDate}
-      />
-    </KeyboardScreen>
+        <Pressable
+          onPress={() => {
+            setShowTrackMenu(false);
+            navigation.getParent()?.navigate("PastRaces");
+          }}
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryButtonText}>Past Races</Text>
+        </Pressable>
+
+        <DatePickerModal
+          visible={showDatePicker}
+          initialDate={eventDate}
+          scheduledDates={scheduledDateValues}
+          onClose={() => setShowDatePicker(false)}
+          onSelectDate={setEventDate}
+        />
+      </KeyboardScreen>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -567,6 +677,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     marginBottom: spacing(1.5),
+  },
+  trackInputWrap: {
+    position: "relative",
+  },
+  trackInput: {
+    paddingRight: 48,
+  },
+  trackClearButton: {
+    alignItems: "center",
+    height: 34,
+    justifyContent: "center",
+    position: "absolute",
+    right: 10,
+    top: 10,
+    width: 34,
+  },
+  trackClearButtonText: {
+    color: "#87AFCB",
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 20,
   },
   label: {
     color: colors.text,

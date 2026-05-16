@@ -8,6 +8,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import TextInput from "../components/AppTextInput";
@@ -91,7 +92,7 @@ function TireCornerField({
         value={wheelOffset}
         onChangeText={(value) => onChangeWheelOffset(sanitizeFractionMeasurementInput(value))}
         onBlur={onBlurWheelOffset}
-        keyboardType="numbers-and-punctuation"
+        keyboardType="number-pad"
       />
     </View>
   );
@@ -270,17 +271,18 @@ export default function TiresScreen() {
   };
 
   return (
-    <KeyboardScreen contentContainerStyle={styles.container}>
-      <Image
-        source={require("../../assets/icons/tires.png")}
-        style={styles.bannerImage}
-        resizeMode="contain"
-      />
+    <TouchableWithoutFeedback accessible={false} onPress={Keyboard.dismiss}>
+      <KeyboardScreen contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <Image
+          source={require("../../assets/icons/tires.png")}
+          style={styles.bannerImage}
+          resizeMode="contain"
+        />
 
-      {userName ? <Text style={styles.welcomeText}>{`Welcome, ${userName}!`}</Text> : null}
-      <Text style={styles.p}>
-        Save LF, RF, LR, and RR tire measurements here so race-night changes stay organized.
-      </Text>
+        {userName ? <Text style={styles.welcomeText}>{`Welcome, ${userName}!`}</Text> : null}
+        <Text style={styles.p}>
+          Save LF, RF, LR, and RR tire measurements here so race-night changes stay organized.
+        </Text>
 
       <View style={styles.card}>
         <Pressable
@@ -569,53 +571,54 @@ export default function TiresScreen() {
         </View>
       </Modal>
 
-      <Modal
-        visible={showDisplaySettings}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setShowDisplaySettings(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Stagger Display</Text>
-            <Text style={styles.modalHelp}>
-              Choose whether the stagger calculator shows fractions or decimals.
-            </Text>
+        <Modal
+          visible={showDisplaySettings}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setShowDisplaySettings(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Stagger Display</Text>
+              <Text style={styles.modalHelp}>
+                Choose whether the stagger calculator shows fractions or decimals.
+              </Text>
 
-            <View style={styles.optionGrid}>
-              {([
-                { id: "fraction", label: "Fractions" },
-                { id: "decimal", label: "Decimals" },
-              ] as const).map((option) => {
-                const isSelected = displayMode === option.id;
-                return (
-                  <Pressable
-                    key={option.id}
-                    onPress={() => {
-                      void handleChangeDisplayMode(option.id);
-                    }}
-                    style={[styles.optionChip, isSelected ? styles.optionChipActive : undefined]}
-                  >
-                    <Text
-                      style={[
-                        styles.optionChipText,
-                        isSelected ? styles.optionChipTextActive : undefined,
-                      ]}
+              <View style={styles.optionGrid}>
+                {([
+                  { id: "fraction", label: "Fractions" },
+                  { id: "decimal", label: "Decimals" },
+                ] as const).map((option) => {
+                  const isSelected = displayMode === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => {
+                        void handleChangeDisplayMode(option.id);
+                      }}
+                      style={[styles.optionChip, isSelected ? styles.optionChipActive : undefined]}
                     >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          isSelected ? styles.optionChipTextActive : undefined,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-            <Pressable onPress={() => setShowDisplaySettings(false)} style={styles.modalCloseButton}>
-              <Text style={styles.modalCloseButtonText}>Close</Text>
-            </Pressable>
+              <Pressable onPress={() => setShowDisplaySettings(false)} style={styles.modalCloseButton}>
+                <Text style={styles.modalCloseButtonText}>Close</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      </Modal>
-    </KeyboardScreen>
+        </Modal>
+      </KeyboardScreen>
+    </TouchableWithoutFeedback>
   );
 }
 

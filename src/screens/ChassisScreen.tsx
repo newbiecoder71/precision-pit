@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, GestureResponderEvent, Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
 import {
@@ -295,6 +295,18 @@ export default function ChassisScreen() {
     }
   };
 
+  const dismissKeyboardOnBackgroundTap = (event: GestureResponderEvent) => {
+    if (event.target === event.currentTarget) {
+      Keyboard.dismiss();
+      setShowBuilderMenu(false);
+    }
+  };
+
+  const backgroundDismissProps = {
+    onStartShouldSetResponder: () => true,
+    onResponderRelease: dismissKeyboardOnBackgroundTap,
+  } as const;
+
   const estimatedEffect = useMemo(
     () =>
       calculateEstimatedScaleEffect({
@@ -323,14 +335,24 @@ export default function ChassisScreen() {
     raceCarType === "Sprint Car" && (carClass?.trim().startsWith("Wing Sprint") ?? false);
 
   return (
-    <KeyboardScreen contentContainerStyle={styles.container}>
-      <Text style={styles.h1}>Chassis</Text>
-      <Text style={styles.p}>
-        Choose a chassis builder to load builder-specific baseline placeholders, then save
-        your team&apos;s actual baseline over the top.
-      </Text>
+      <KeyboardScreen
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
+      >
+      <View onStartShouldSetResponder={() => true} onResponderRelease={dismissKeyboardOnBackgroundTap}>
+        <Text style={styles.h1}>Chassis</Text>
+        <Text style={styles.p}>
+          Choose a chassis builder to load builder-specific baseline placeholders, then save
+          your team&apos;s actual baseline over the top.
+        </Text>
+      </View>
 
-      <View style={styles.card}>
+      <View
+        style={styles.card}
+        onStartShouldSetResponder={() => true}
+        onResponderRelease={dismissKeyboardOnBackgroundTap}
+      >
         <Text style={styles.label}>Chassis Builder</Text>
         <View style={styles.dropdownWrap}>
           <Pressable
@@ -432,13 +454,17 @@ export default function ChassisScreen() {
             </Pressable>
             {expandedSections.wingSetup ? (
               <>
-                <Text style={styles.sectionBody}>
-                  Save the key wing settings here for your baseline winged sprint package.
-                </Text>
-                <View style={styles.grid}>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.sectionBody}>
+                    Save the key wing settings here for your baseline winged sprint package.
+                  </Text>
+                </Pressable>
+                <View style={styles.grid} {...backgroundDismissProps}>
                   {wingSprintFields.map((field) => (
                     <View key={field.key} style={styles.gridField}>
-                      <Text style={styles.label}>{field.label}</Text>
+                      <Pressable onPress={Keyboard.dismiss}>
+                        <Text style={styles.label}>{field.label}</Text>
+                      </Pressable>
                       <TextInput
                         value={draftSetup[field.key]}
                         onChangeText={(value) => handleTextChange(field.key, value)}
@@ -446,7 +472,9 @@ export default function ChassisScreen() {
                         placeholderTextColor="#5E7B94"
                         style={styles.input}
                       />
-                      <Text style={styles.reference}>{field.reference}</Text>
+                      <Pressable onPress={Keyboard.dismiss}>
+                        <Text style={styles.reference}>{field.reference}</Text>
+                      </Pressable>
                     </View>
                   ))}
                 </View>
@@ -469,14 +497,18 @@ export default function ChassisScreen() {
         </Pressable>
         {expandedSections.weightPercentages ? (
           <>
-            <Text style={styles.sectionBody}>
-              Enter corner scale weights and the percentage fields will auto-fill from those numbers.
-            </Text>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.sectionBody}>
+                Enter corner scale weights and the percentage fields will auto-fill from those numbers.
+              </Text>
+            </Pressable>
 
-            <View style={styles.grid}>
+            <View style={styles.grid} {...backgroundDismissProps}>
               {scaleWeightFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
-                  <Text style={styles.label}>{field.label}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.label}>{field.label}</Text>
+                  </Pressable>
                   <TextInput
                     value={draftSetup[field.key]}
                     onChangeText={(value) => handleNumericChange(field.key, value)}
@@ -490,14 +522,18 @@ export default function ChassisScreen() {
               ))}
             </View>
 
-            <Text style={styles.calculatedHelper}>
-              These percentages are calculated from LF + RF + LR + RR scale weights.
-            </Text>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.calculatedHelper}>
+                These percentages are calculated from LF + RF + LR + RR scale weights.
+              </Text>
+            </Pressable>
 
-            <View style={styles.percentRow}>
+            <View style={styles.percentRow} {...backgroundDismissProps}>
               {percentFields.slice(0, 2).map((field) => (
                 <View key={field.key} style={styles.gridField}>
-                  <Text style={styles.label}>{field.label}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.label}>{field.label}</Text>
+                  </Pressable>
                   <TextInput
                     value={draftSetup[field.key]}
                     onChangeText={() => {}}
@@ -507,14 +543,18 @@ export default function ChassisScreen() {
                     editable={false}
                     style={[styles.input, styles.inputDisabled]}
                   />
-                  <Text style={styles.reference}>{field.reference}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.reference}>{field.reference}</Text>
+                  </Pressable>
                 </View>
               ))}
             </View>
 
-            <View style={styles.percentLeadField}>
+            <View style={styles.percentLeadField} {...backgroundDismissProps}>
               <View style={styles.fieldBlock}>
-                <Text style={styles.label}>{percentFields[2].label}</Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.label}>{percentFields[2].label}</Text>
+                </Pressable>
                 <TextInput
                   value={draftSetup[percentFields[2].key]}
                   onChangeText={() => {}}
@@ -527,7 +567,9 @@ export default function ChassisScreen() {
                   editable={false}
                   style={[styles.input, styles.inputDisabled]}
                 />
-                <Text style={styles.reference}>{percentFields[2].reference}</Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.reference}>{percentFields[2].reference}</Text>
+                </Pressable>
               </View>
             </View>
           </>
@@ -547,14 +589,18 @@ export default function ChassisScreen() {
         </Pressable>
         {expandedSections.adjustmentModel ? (
           <>
-            <Text style={styles.sectionBody}>
-              Track the change inputs here. The estimate panel gives a likely direction, but the scale pads are still the source of truth.
-            </Text>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.sectionBody}>
+                Track the change inputs here. The estimate panel gives a likely direction, but the scale pads are still the source of truth.
+              </Text>
+            </Pressable>
 
-            <View style={styles.grid}>
+            <View style={styles.grid} {...backgroundDismissProps}>
               {jackBoltFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
-                  <Text style={styles.label}>{field.label}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.label}>{field.label}</Text>
+                  </Pressable>
                   <TextInput
                     value={draftSetup[field.key]}
                     onChangeText={(value) => handleNumericChange(field.key, value)}
@@ -563,15 +609,19 @@ export default function ChassisScreen() {
                     keyboardType="decimal-pad"
                     style={styles.input}
                   />
-                  <Text style={styles.reference}>{field.reference}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.reference}>{field.reference}</Text>
+                  </Pressable>
                 </View>
               ))}
             </View>
 
-            <View style={styles.grid}>
+            <View style={styles.grid} {...backgroundDismissProps}>
               {springChangeFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
-                  <Text style={styles.label}>{field.label}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.label}>{field.label}</Text>
+                  </Pressable>
                   <TextInput
                     value={draftSetup[field.key]}
                     onChangeText={(value) => handleNumericChange(field.key, value)}
@@ -580,15 +630,19 @@ export default function ChassisScreen() {
                     keyboardType="decimal-pad"
                     style={styles.input}
                   />
-                  <Text style={styles.reference}>{field.reference}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.reference}>{field.reference}</Text>
+                  </Pressable>
                 </View>
               ))}
             </View>
 
-            <View style={styles.grid}>
+            <View style={styles.grid} {...backgroundDismissProps}>
               {shockChangeFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
-                  <Text style={styles.label}>{field.label}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.label}>{field.label}</Text>
+                  </Pressable>
                   <TextInput
                     value={draftSetup[field.key]}
                     onChangeText={(value) => handleNumericChange(field.key, value)}
@@ -597,14 +651,18 @@ export default function ChassisScreen() {
                     keyboardType="decimal-pad"
                     style={styles.input}
                   />
-                  <Text style={styles.reference}>{field.reference}</Text>
+                  <Pressable onPress={Keyboard.dismiss}>
+                    <Text style={styles.reference}>{field.reference}</Text>
+                  </Pressable>
                 </View>
               ))}
             </View>
 
-            <View style={styles.grid}>
+            <View style={styles.grid} {...backgroundDismissProps}>
               <View style={styles.gridField}>
-                <Text style={styles.label}>Ballast Change Lbs</Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.label}>Ballast Change Lbs</Text>
+                </Pressable>
                 <TextInput
                   value={draftSetup.ballastChangeLbs}
                   onChangeText={(value) => handleNumericChange("ballastChangeLbs", value)}
@@ -613,10 +671,14 @@ export default function ChassisScreen() {
                   keyboardType="decimal-pad"
                   style={styles.input}
                 />
-                <Text style={styles.reference}>Enter how many pounds were moved or added relative to baseline.</Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.reference}>Enter how many pounds were moved or added relative to baseline.</Text>
+                </Pressable>
               </View>
               <View style={styles.gridField}>
-                <Text style={styles.label}>Ballast Location Zone</Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.label}>Ballast Location Zone</Text>
+                </Pressable>
                 <TextInput
                   value={draftSetup.ballastLocationZone}
                   onChangeText={(value) => handleTextChange("ballastLocationZone", value)}
@@ -624,44 +686,60 @@ export default function ChassisScreen() {
                   placeholderTextColor="#5E7B94"
                   style={styles.input}
                 />
-                <Text style={styles.reference}>Use simple zones like LF, LR, left, right, rear, or center rear.</Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.reference}>Use simple zones like LF, LR, left, right, rear, or center rear.</Text>
+                </Pressable>
               </View>
             </View>
 
-            <View style={styles.estimateCard}>
-              <Text style={styles.estimateTitle}>Estimated Scale Effect</Text>
+            <View style={styles.estimateCard} {...backgroundDismissProps}>
+              <Pressable onPress={Keyboard.dismiss}>
+                <Text style={styles.estimateTitle}>Estimated Scale Effect</Text>
+              </Pressable>
               {estimatedEffect ? (
                 <>
-                  <View style={styles.percentRow}>
+                  <View style={styles.percentRow} {...backgroundDismissProps}>
                     <View style={styles.gridField}>
-                      <Text style={styles.label}>Estimated Cross</Text>
+                      <Pressable onPress={Keyboard.dismiss}>
+                        <Text style={styles.label}>Estimated Cross</Text>
+                      </Pressable>
                       <Text style={[styles.input, styles.estimateValue]}>{estimatedEffect.estimatedCrossweightWedge}%</Text>
                     </View>
                     <View style={styles.gridField}>
-                      <Text style={styles.label}>Estimated Left</Text>
+                      <Pressable onPress={Keyboard.dismiss}>
+                        <Text style={styles.label}>Estimated Left</Text>
+                      </Pressable>
                       <Text style={[styles.input, styles.estimateValue]}>{estimatedEffect.estimatedLeftSidePercentage}%</Text>
                     </View>
                   </View>
-                  <View style={styles.percentLeadField}>
-                    <Text style={styles.label}>Estimated Rear</Text>
+                  <View style={styles.percentLeadField} {...backgroundDismissProps}>
+                    <Pressable onPress={Keyboard.dismiss}>
+                      <Text style={styles.label}>Estimated Rear</Text>
+                    </Pressable>
                     <Text style={[styles.input, styles.estimateValue]}>{estimatedEffect.estimatedRearPercentage}%</Text>
                   </View>
                   {estimatedEffect.handlingNotes.length ? (
                     <View style={styles.effectNotes}>
                       {estimatedEffect.handlingNotes.map((note) => (
-                        <Text key={note} style={styles.effectNoteText}>
-                          {note}
-                        </Text>
+                        <Pressable key={note} onPress={Keyboard.dismiss}>
+                          <Text style={styles.effectNoteText}>
+                            {note}
+                          </Text>
+                        </Pressable>
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.reference}>Add adjustment inputs above to see estimated handling trends.</Text>
+                    <Pressable onPress={Keyboard.dismiss}>
+                      <Text style={styles.reference}>Add adjustment inputs above to see estimated handling trends.</Text>
+                    </Pressable>
                   )}
                 </>
               ) : (
-                <Text style={styles.reference}>
-                  Enter all four scale weights first, then the app can estimate how your adjustments may shift the percentages.
-                </Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.reference}>
+                    Enter all four scale weights first, then the app can estimate how your adjustments may shift the percentages.
+                  </Text>
+                </Pressable>
               )}
             </View>
           </>
@@ -681,13 +759,17 @@ export default function ChassisScreen() {
         </Pressable>
         {expandedSections.notes ? (
           <>
-            <Text style={styles.sectionBody}>
-              These fields stay as text because teams usually need measurements plus context.
-            </Text>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.sectionBody}>
+                These fields stay as text because teams usually need measurements plus context.
+              </Text>
+            </Pressable>
 
             {noteFields.map((field) => (
-              <View key={field.key} style={styles.fieldBlock}>
-                <Text style={styles.label}>{field.label}</Text>
+              <View key={field.key} style={styles.fieldBlock} {...backgroundDismissProps}>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.label}>{field.label}</Text>
+                </Pressable>
                 <TextInput
                   value={draftSetup[field.key]}
                   onChangeText={(value) => handleTextChange(field.key, value)}
@@ -697,7 +779,9 @@ export default function ChassisScreen() {
                   textAlignVertical="top"
                   style={[styles.input, styles.inputMultiline]}
                 />
-                <Text style={styles.reference}>{field.reference}</Text>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.reference}>{field.reference}</Text>
+                </Pressable>
               </View>
             ))}
           </>
@@ -707,7 +791,7 @@ export default function ChassisScreen() {
           <Text style={styles.buttonText}>Save Chassis Setup</Text>
         </Pressable>
       </View>
-    </KeyboardScreen>
+      </KeyboardScreen>
   );
 }
 

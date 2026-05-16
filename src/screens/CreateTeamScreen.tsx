@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import TextInput from "../components/AppTextInput";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +16,8 @@ export default function CreateTeamScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const createAccount = useAppStore((state) => state.createAccount);
 
   const handleSubmit = async () => {
@@ -104,23 +107,49 @@ export default function CreateTeamScreen() {
               onChangeText={setEmail}
             />
 
-            <TextInput
-              secureTextEntry
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#4F7390"
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.passwordFieldWrap}>
+              <TextInput
+                secureTextEntry={!showPassword}
+                style={[styles.input, styles.passwordInput]}
+                placeholder="Password"
+                placeholderTextColor="#4F7390"
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Pressable
+                onPress={() => setShowPassword((current) => !current)}
+                style={styles.passwordToggle}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  size={22}
+                  color="#8ED4FF"
+                />
+              </Pressable>
+            </View>
 
-            <TextInput
-              secureTextEntry
-              style={styles.input}
-              placeholder="Confirm password"
-              placeholderTextColor="#4F7390"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
+            <View style={styles.passwordFieldWrap}>
+              <TextInput
+                secureTextEntry={!showConfirmPassword}
+                style={[styles.input, styles.passwordInput]}
+                placeholder="Confirm password"
+                placeholderTextColor="#4F7390"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+              <Pressable
+                onPress={() => setShowConfirmPassword((current) => !current)}
+                style={styles.passwordToggle}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
+                  size={22}
+                  color="#8ED4FF"
+                />
+              </Pressable>
+            </View>
 
             <Text style={styles.helper}>
               Password must be at least 8 characters and include uppercase, lowercase,
@@ -192,6 +221,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 14,
+  },
+  passwordFieldWrap: {
+    position: "relative",
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  passwordToggle: {
+    alignItems: "center",
+    height: 44,
+    justifyContent: "center",
+    position: "absolute",
+    right: 12,
+    top: 6,
+    width: 32,
   },
   helper: {
     color: "#87AFCB",

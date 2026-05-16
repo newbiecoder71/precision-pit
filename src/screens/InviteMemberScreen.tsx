@@ -3,14 +3,17 @@ import { Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from "rea
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
 import { colors } from "../theme";
-import { useAppStore } from "../store/useAppStore";
+import { TeamRole, useAppStore } from "../store/useAppStore";
 
 const androidInstallUrl = process.env.EXPO_PUBLIC_ANDROID_INSTALL_URL?.trim() ?? "";
+const iosInstallUrl = process.env.EXPO_PUBLIC_IOS_INSTALL_URL?.trim() ?? "";
+const inviteRoleOptions: TeamRole[] = ["Driver", "Crew Chief", "Crew"];
 
 export default function InviteMemberScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState<"email" | "text">("email");
+  const [selectedRole, setSelectedRole] = useState<TeamRole>("Crew");
   const teamName = useAppStore((state) => state.teamName);
   const inviteMember = useAppStore((state) => state.inviteMember);
 
@@ -29,11 +32,16 @@ export default function InviteMemberScreen({ navigation }: any) {
       const result = await inviteMember({
         email,
         deliveryMethod,
+        role: selectedRole,
       });
 
       if (deliveryMethod === "text" && result.inviteLink) {
-        const message = androidInstallUrl
-          ? `You've been invited to join ${teamName || "the team"} on Precision Pit.\nInstall the app: ${androidInstallUrl}\nThen join your team: ${result.inviteLink}`
+        const installLines = [
+          iosInstallUrl ? `Install on iPhone/iPad: ${iosInstallUrl}` : "",
+          androidInstallUrl ? `Install on Android: ${androidInstallUrl}` : "",
+        ].filter(Boolean);
+        const message = installLines.length
+          ? `You've been invited to join ${teamName || "the team"} on Precision Pit.\n${installLines.join("\n")}\nThen join your team: ${result.inviteLink}`
           : `You've been invited to join ${teamName || "the team"} on Precision Pit.\nJoin your team here: ${result.inviteLink}`;
         const separator = Platform.OS === "ios" ? "&" : "?";
         const smsUrl = `sms:${phoneNumber}${separator}body=${encodeURIComponent(message)}`;
@@ -41,8 +49,8 @@ export default function InviteMemberScreen({ navigation }: any) {
 
         Alert.alert(
           "Text ready",
-          androidInstallUrl
-            ? "Your text message app opened with the app install link and team join link."
+          installLines.length
+            ? "Your text message app opened with the install link options and team join link."
             : "Your text message app opened with the team join link.",
         );
         navigation.goBack();
@@ -70,6 +78,21 @@ export default function InviteMemberScreen({ navigation }: any) {
         Choose whether to send the invite by email or text message. The invite is still tied
         to the new member&apos;s email address so they can join the team inside the app.
       </Text>
+
+      <Text style={styles.sectionLabel}>Select role for new team member</Text>
+      <View style={styles.roleRow}>
+        {inviteRoleOptions.map((role) => (
+          <Pressable
+            key={role}
+            onPress={() => setSelectedRole(role)}
+            style={[styles.roleButton, selectedRole === role ? styles.roleButtonActive : undefined]}
+          >
+            <Text style={[styles.roleButtonText, selectedRole === role ? styles.roleButtonTextActive : undefined]}>
+              {role}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
       <View style={styles.deliveryRow}>
         <Pressable
@@ -139,6 +162,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 20,
+  },
+  sectionLabel: {
+    color: "#8ED4FF",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 10,
+    textTransform: "uppercase",
+  },
+  roleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 18,
+  },
+  roleButton: {
+    alignItems: "center",
+    borderColor: "#21486A",
+    borderRadius: 999,
+    borderWidth: 1,
+    minWidth: 110,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  roleButtonActive: {
+    backgroundColor: "#1780D4",
+    borderColor: "#8ED4FF",
+  },
+  roleButtonText: {
+    color: "#8ED4FF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  roleButtonTextActive: {
+    color: "#F3FAFF",
   },
   deliveryRow: {
     flexDirection: "row",

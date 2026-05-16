@@ -140,6 +140,7 @@ export type TeamMember = {
 export type PendingInvite = {
   id: string;
   email: string;
+  role: TeamRole;
   invitedAt: string;
   status: "pending";
 };
@@ -1077,6 +1078,7 @@ type AppState = {
   inviteMember: (input: {
       email: string;
       deliveryMethod: "email" | "text";
+      role: TeamRole;
     }) => Promise<InviteMemberResult>;
   updateTeamMemberRole: (memberId: string, role: TeamRole) => Promise<void>;
     deletePendingInvite: (inviteId: string) => Promise<void>;
@@ -1786,7 +1788,7 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
       .returns<TeamMemberRow[]>(),
     supabase
       .from("invites")
-      .select("id, email, created_at, status")
+      .select("id, email, role, created_at, status")
       .eq("team_id", teamId)
       .eq("status", "pending")
       .order("created_at", { ascending: false })
@@ -1841,6 +1843,7 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
     pendingInvites: (invitesResponse.data ?? []).map((invite) => ({
       id: invite.id,
       email: invite.email,
+      role: normalizeTeamRole(invite.role || "Crew"),
       invitedAt: invite.created_at,
       status: invite.status,
     })),
@@ -2110,6 +2113,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
 
     if (error) {
+      if (error.message?.toLowerCase().includes("role")) {
+        throw new Error(
+          "The invite role field is not in Supabase yet. Run the latest invites SQL update to add the role column, then try sending the invite again.",
+        );
+      }
       throw error;
     }
 
@@ -2231,7 +2239,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     let inviteQuery = supabase
       .from("invites")
-      .select("id, team_id, email")
+      .select("id, team_id, email, role")
       .eq("email", trimmedEmail)
       .eq("status", "pending");
 
@@ -2242,7 +2250,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { data: invite, error: inviteError } = await inviteQuery
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle<{ id: string; team_id: string; email: string }>();
+      .maybeSingle<{ id: string; team_id: string; email: string; role?: string | null }>();
 
     if (inviteError) {
       throw inviteError;
@@ -2258,7 +2266,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         user_id: user.id,
         email: trimmedEmail,
         full_name: trimmedName,
-        role: "Crew",
+        role: normalizeTeamRole(invite.role || "Crew"),
         status: "active",
       },
       { onConflict: "team_id,email" },
@@ -2417,12 +2425,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       brandingPreferences: nextPreferences,
     });
   },
-    inviteMember: async ({ email, deliveryMethod }) => {
+    inviteMember: async ({ email, deliveryMethod, role }) => {
         requireSupabase();
 
         const trimmedEmail = email.trim().toLowerCase();
         const { teamId, teamName } = get();
       const user = await getAuthUser();
+      const nextRole = normalizeTeamRole(role);
 
       if (!trimmedEmail || !teamId || !user?.id) {
         return {
@@ -2470,6 +2479,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       .insert({
         team_id: teamId,
         email: trimmedEmail,
+        role: nextRole,
         token,
         invited_by_user_id: user.id,
         status: "pending",

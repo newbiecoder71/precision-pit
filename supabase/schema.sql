@@ -44,6 +44,7 @@ create table if not exists public.invites (
   id uuid primary key default gen_random_uuid(),
   team_id uuid not null references public.teams (id) on delete cascade,
   email text not null,
+  role text not null default 'Crew' check (role in ('Owner', 'Driver', 'Crew Chief', 'Crew')),
   token text not null unique,
   status text not null default 'pending' check (status in ('pending', 'accepted', 'revoked')),
   invited_by_user_id uuid not null references auth.users (id) on delete cascade,
