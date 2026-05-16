@@ -9,13 +9,36 @@
   const videoTriggers = Array.from(document.querySelectorAll(".video-trigger"));
   const waitlistForm = document.getElementById("waitlist-form");
   const waitlistStatus = document.getElementById("waitlist-status");
+  let activeOverlay = null;
+  let overlayHistoryOpen = false;
+
+  const syncBodyScroll = () => {
+    document.body.style.overflow = activeOverlay ? "hidden" : "";
+  };
+
+  const pushOverlayHistory = (overlayType) => {
+    history.pushState({ precisionPitOverlay: overlayType }, "", window.location.href);
+    overlayHistoryOpen = true;
+  };
+
+  const requestOverlayClose = (closeFn) => {
+    if (overlayHistoryOpen) {
+      history.back();
+      return;
+    }
+
+    closeFn();
+  };
 
   if (shotLightbox && shotLightboxImage && shotLightboxClose) {
     const closeLightbox = () => {
       shotLightbox.hidden = true;
-      document.body.style.overflow = "";
       shotLightboxImage.setAttribute("src", "");
       shotLightboxImage.setAttribute("alt", "");
+      if (activeOverlay === "shot") {
+        activeOverlay = null;
+      }
+      syncBodyScroll();
     };
 
     shotTriggers.forEach((trigger) => {
@@ -30,7 +53,9 @@
         shotLightboxImage.setAttribute("src", src);
         shotLightboxImage.setAttribute("alt", alt);
         shotLightbox.hidden = false;
-        document.body.style.overflow = "hidden";
+        activeOverlay = "shot";
+        syncBodyScroll();
+        pushOverlayHistory("shot");
       });
     });
 
@@ -41,15 +66,15 @@
       }
 
       if (target.dataset.shotClose === "true") {
-        closeLightbox();
+        requestOverlayClose(closeLightbox);
       }
     });
 
-    shotLightboxClose.addEventListener("click", closeLightbox);
+    shotLightboxClose.addEventListener("click", () => requestOverlayClose(closeLightbox));
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !shotLightbox.hidden) {
-        closeLightbox();
+        requestOverlayClose(closeLightbox);
       }
     });
   }
@@ -57,10 +82,13 @@
   if (videoLightbox && videoLightboxPlayer instanceof HTMLVideoElement && videoLightboxClose) {
     const closeVideoLightbox = () => {
       videoLightbox.hidden = true;
-      document.body.style.overflow = "";
       videoLightboxPlayer.pause();
       videoLightboxPlayer.removeAttribute("src");
       videoLightboxPlayer.load();
+      if (activeOverlay === "video") {
+        activeOverlay = null;
+      }
+      syncBodyScroll();
     };
 
     videoTriggers.forEach((trigger) => {
@@ -73,7 +101,9 @@
 
         videoLightboxPlayer.setAttribute("src", src);
         videoLightbox.hidden = false;
-        document.body.style.overflow = "hidden";
+        activeOverlay = "video";
+        syncBodyScroll();
+        pushOverlayHistory("video");
         videoLightboxPlayer.load();
         videoLightboxPlayer.play().catch(() => {});
       });
@@ -86,18 +116,43 @@
       }
 
       if (target.dataset.videoClose === "true") {
-        closeVideoLightbox();
+        requestOverlayClose(closeVideoLightbox);
       }
     });
 
-    videoLightboxClose.addEventListener("click", closeVideoLightbox);
+    videoLightboxClose.addEventListener("click", () => requestOverlayClose(closeVideoLightbox));
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !videoLightbox.hidden) {
-        closeVideoLightbox();
+        requestOverlayClose(closeVideoLightbox);
       }
     });
   }
+
+  window.addEventListener("popstate", () => {
+    if (!activeOverlay) {
+      overlayHistoryOpen = false;
+      return;
+    }
+
+    overlayHistoryOpen = false;
+
+    if (activeOverlay === "shot" && shotLightbox && shotLightboxImage) {
+      shotLightbox.hidden = true;
+      shotLightboxImage.setAttribute("src", "");
+      shotLightboxImage.setAttribute("alt", "");
+    }
+
+    if (activeOverlay === "video" && videoLightbox && videoLightboxPlayer instanceof HTMLVideoElement) {
+      videoLightbox.hidden = true;
+      videoLightboxPlayer.pause();
+      videoLightboxPlayer.removeAttribute("src");
+      videoLightboxPlayer.load();
+    }
+
+    activeOverlay = null;
+    syncBodyScroll();
+  });
 
   if (!waitlistForm || !waitlistStatus) {
     return;

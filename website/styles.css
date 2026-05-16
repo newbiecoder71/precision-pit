@@ -910,8 +910,6 @@ h3 {
     padding: 0 16px 48px;
   }
 
-  .topbar,
-  .topnav,
   .hero-actions,
   .screenshot-grid,
   .video-grid {
@@ -919,7 +917,7 @@ h3 {
   }
 
   .topbar {
-    justify-content: stretch;
+    display: none;
   }
 
   .topnav,
@@ -927,6 +925,10 @@ h3 {
   .screenshot-grid,
   .video-grid {
     gap: 12px;
+  }
+
+  .hero {
+    padding-top: 0;
   }
 
   .mock-video-frame {
@@ -941,9 +943,9 @@ h3 {
   }
 
   .hero-logo-wrap {
-    margin-top: 16px;
+    margin-top: 0;
     margin-bottom: 18px;
-    padding-top: 12px;
+    padding-top: 0;
     padding-bottom: 12px;
   }
 
