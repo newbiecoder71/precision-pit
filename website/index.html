@@ -146,54 +146,84 @@
 
           <div class="screenshot-grid">
             <article class="shot-card">
-              <div class="shot-frame">
+              <button
+                class="shot-frame shot-trigger"
+                type="button"
+                data-shot-src="./media/racing_dashboard%20(2).png"
+                data-shot-alt="Precision Pit home dashboard screenshot"
+              >
                 <img
                   src="./media/racing_dashboard%20(2).png"
                   alt="Precision Pit home dashboard screenshot"
                   class="shot-image"
                 />
-              </div>
+              </button>
               <h3>Dashboard</h3>
               <p>See the next race at a glance, jump into key actions, and keep the team focused on what comes next.</p>
             </article>
 
             <article class="shot-card">
-              <div class="shot-frame">
+              <button
+                class="shot-frame shot-trigger"
+                type="button"
+                data-shot-src="./media/current_open_race.png"
+                data-shot-alt="Precision Pit race night screenshot"
+              >
                 <img
                   src="./media/current_open_race.png"
                   alt="Precision Pit race night screenshot"
                   class="shot-image"
                 />
-              </div>
+              </button>
               <h3>Race Night</h3>
               <p>Track each stage of the night with organized setup entries, quick section access, and race-specific notes.</p>
             </article>
 
             <article class="shot-card">
-              <div class="shot-frame">
+              <button
+                class="shot-frame shot-trigger"
+                type="button"
+                data-shot-src="./media/setups_screen.png"
+                data-shot-alt="Precision Pit baseline setups screenshot"
+              >
                 <img
                   src="./media/setups_screen.png"
                   alt="Precision Pit baseline setups screenshot"
                   class="shot-image"
                 />
-              </div>
+              </button>
               <h3>Baseline Setups</h3>
               <p>Build a dependable baseline for chassis, suspension, tires, and driveline settings before the trailer ever leaves.</p>
             </article>
 
             <article class="shot-card">
-              <div class="shot-frame">
+              <button
+                class="shot-frame shot-trigger"
+                type="button"
+                data-shot-src="./media/team_invite.png"
+                data-shot-alt="Precision Pit team management screenshot"
+              >
                 <img
                   src="./media/team_invite.png"
                   alt="Precision Pit team management screenshot"
                   class="shot-image"
                 />
-              </div>
+              </button>
               <h3>Team Management</h3>
               <p>Invite drivers and crew, assign roles, and keep the whole team connected around the same race-night data.</p>
             </article>
           </div>
         </section>
+
+        <div class="shot-lightbox" id="shot-lightbox" hidden>
+          <div class="shot-lightbox-backdrop" data-shot-close="true"></div>
+          <div class="shot-lightbox-phone" role="dialog" aria-modal="true" aria-label="Screenshot preview">
+            <button class="shot-lightbox-close" id="shot-lightbox-close" type="button" aria-label="Close screenshot">x</button>
+            <div class="shot-lightbox-screen">
+              <img id="shot-lightbox-image" src="" alt="" class="shot-lightbox-image" />
+            </div>
+          </div>
+        </div>
 
         <div id="videos"></div>
         <section class="section" id="tutorials">

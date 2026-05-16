@@ -1,6 +1,54 @@
 (function () {
+  const shotLightbox = document.getElementById("shot-lightbox");
+  const shotLightboxImage = document.getElementById("shot-lightbox-image");
+  const shotLightboxClose = document.getElementById("shot-lightbox-close");
+  const shotTriggers = Array.from(document.querySelectorAll(".shot-trigger"));
   const waitlistForm = document.getElementById("waitlist-form");
   const waitlistStatus = document.getElementById("waitlist-status");
+
+  if (shotLightbox && shotLightboxImage && shotLightboxClose) {
+    const closeLightbox = () => {
+      shotLightbox.hidden = true;
+      document.body.style.overflow = "";
+      shotLightboxImage.setAttribute("src", "");
+      shotLightboxImage.setAttribute("alt", "");
+    };
+
+    shotTriggers.forEach((trigger) => {
+      trigger.addEventListener("click", () => {
+        const src = trigger.getAttribute("data-shot-src");
+        const alt = trigger.getAttribute("data-shot-alt") || "Precision Pit screenshot";
+
+        if (!src) {
+          return;
+        }
+
+        shotLightboxImage.setAttribute("src", src);
+        shotLightboxImage.setAttribute("alt", alt);
+        shotLightbox.hidden = false;
+        document.body.style.overflow = "hidden";
+      });
+    });
+
+    shotLightbox.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      if (target.dataset.shotClose === "true") {
+        closeLightbox();
+      }
+    });
+
+    shotLightboxClose.addEventListener("click", closeLightbox);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !shotLightbox.hidden) {
+        closeLightbox();
+      }
+    });
+  }
 
   if (!waitlistForm || !waitlistStatus) {
     return;
