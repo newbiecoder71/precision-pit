@@ -242,14 +242,14 @@
               <a class="inline-link" href="./media/setup_team-web.webm">Open video file</a>
             </article>
 
-            <article class="video-card">
+            <!-- <article class="video-card">
               <div class="video-placeholder">
                 <span>Settings Tutorial</span>
               </div>
               <h3>How to Set Up Team Settings</h3>
               <p>Show owners how to finish team details, baseline settings, and the saved information the crew will rely on later.</p>
               <a class="inline-link" href="./tutorials/team-settings.html">Open tutorial draft</a>
-            </article>
+            </article> -->
 
             <!-- <article class="video-card">
               <div class="video-placeholder">
@@ -293,8 +293,79 @@
 
         <section class="section support-section" id="support">
           <div class="section-heading">
-            <p class="eyebrow">Support</p>
-            <h2>Make it easy for every team member to know where to go for help.</h2>
+            <p class="eyebrow">Launch Waitlist</p>
+            <h2>Interested teams, please sign up now and be the first to hear when Precision Pit launches</h2>
+            <p class="section-copy">
+              Precision Pit is getting close. Join the waiting list below and we will be ready to
+              notify you when the app is available to download.
+            </p>
+          </div>
+
+          <div class="waitlist-card">
+            <div class="waitlist-copy">
+              <h3>Join the Precision Pit waiting list</h3>
+              <p>
+                Drop your info below if you want launch updates, app availability details, and the
+                first chance to download Precision Pit when it goes live.
+              </p>
+              <ul class="waitlist-points">
+                <li>Perfect for team owners, drivers, and crew members planning ahead.</li>
+                <li>Helps us understand the number of Android vs. Apple device interests.</li>
+                <li>Gives you a direct email when Precision Pit is ready to launch.</li>
+              </ul>
+            </div>
+
+            <form class="waitlist-form" id="waitlist-form">
+              <input type="text" name="website" tabindex="-1" autocomplete="off" class="waitlist-honeypot" />
+
+              <label class="waitlist-field">
+                <span>Name</span>
+                <div class="waitlist-field-control">
+                  <input type="text" name="fullName" placeholder="Enter name" />
+                  <button class="waitlist-clear" type="button" aria-label="Clear name field">x</button>
+                </div>
+              </label>
+
+              <label class="waitlist-field">
+                <span>Email address</span>
+                <div class="waitlist-field-control">
+                  <input type="email" name="email" placeholder="Enter email" required />
+                  <button class="waitlist-clear" type="button" aria-label="Clear email field">x</button>
+                </div>
+              </label>
+
+              <label class="waitlist-field">
+                <span>Team name</span>
+                <div class="waitlist-field-control">
+                  <input type="text" name="teamName" placeholder="Optional" />
+                  <button class="waitlist-clear" type="button" aria-label="Clear team name field">x</button>
+                </div>
+              </label>
+
+              <label class="waitlist-field">
+                <span>Device platform</span>
+                <input type="hidden" name="platformPreference" value="Either" />
+                <div class="waitlist-platform-row" role="group" aria-label="Device platform">
+                  <button class="waitlist-platform-button" type="button" data-platform="Android">Android</button>
+                  <button class="waitlist-platform-button" type="button" data-platform="iPhone">Apple</button>
+                </div>
+              </label>
+
+              <label class="waitlist-field">
+                <span>Message</span>
+                <div class="waitlist-field-control waitlist-field-control-textarea">
+                  <textarea
+                    name="notes"
+                    rows="4"
+                    placeholder="Any questions you might have, type them here."
+                  ></textarea>
+                  <button class="waitlist-clear" type="button" aria-label="Clear notes field">x</button>
+                </div>
+              </label>
+
+              <button class="waitlist-submit" type="submit">Join the Waiting List</button>
+              <p class="waitlist-status" id="waitlist-status" aria-live="polite"></p>
+            </form>
           </div>
 
           <div class="support-card">
@@ -313,7 +384,7 @@
             </div>
           </div>
 
-          <div class="store-badges">
+          <!-- <div class="store-badges">
             <a class="store-badge-link" href="#" aria-label="Download Precision Pit on the App Store">
               <img
                 src="./media/app-store-badge.svg"
@@ -328,10 +399,11 @@
                 class="store-badge-image"
               />
             </a>
-          </div>
+          </div> -->
         </section>
       </main>
     </div>
+    <script src="./waitlist.js"></script>
     <script>
       (function () {
         const promoVideo = document.getElementById("promo-video");

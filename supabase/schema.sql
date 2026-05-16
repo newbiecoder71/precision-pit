@@ -53,6 +53,19 @@ create table if not exists public.invites (
   accepted_at timestamptz
 );
 
+create table if not exists public.waitlist_signups (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  full_name text,
+  team_name text,
+  platform_preference text not null default 'Either'
+    check (platform_preference in ('iPhone', 'Android', 'Either')),
+  notes text,
+  source text not null default 'website',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.race_events (
   id uuid primary key default gen_random_uuid(),
   team_id uuid not null references public.teams (id) on delete cascade,
