@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import AppPressable from "../components/AppPressable";
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
 import { colors } from "../theme";
@@ -134,9 +135,9 @@ export default function InviteMemberScreen({ navigation }: any) {
         />
       ) : null}
 
-      <Pressable onPress={handleInvite} style={styles.button}>
+      <AppPressable onPress={handleInvite} style={styles.button}>
         <Text style={styles.buttonText}>{deliveryMethod === "email" ? "Send Email Invite" : "Send Text Link"}</Text>
-      </Pressable>
+      </AppPressable>
     </KeyboardScreen>
   );
 }

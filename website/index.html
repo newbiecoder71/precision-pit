@@ -29,7 +29,7 @@
           <a href="#tutorials">Tutorials</a>
           <a href="#screenshots">Screenshots</a>
           <a href="#videos">Videos</a>
-          <a href="#support">Support</a>
+          <a href="#support-card">Support</a>
         </nav>
       </header>
 
@@ -58,7 +58,7 @@
               <a class="button button-primary" href="#videos">Watch Demo Videos</a>
               <a class="button button-secondary" href="#screenshots">View App Screens</a>
               <a class="button button-secondary" href="#tutorials">Open Tutorials</a>
-              <a class="button button-secondary" href="#support">Join the Waiting List</a>
+              <button class="button button-secondary waitlist-open-trigger" type="button">Join the Waiting List</button>
             </div>
             <ul class="hero-points">
               <li>Track-specific setup adjustments by stage</li>
@@ -352,84 +352,35 @@
           </div>
         </section>
 
-        <section class="section support-section" id="support">
+        <section class="section support-section" id="waitlist">
           <div class="section-heading">
             <p class="eyebrow">Launch Waitlist</p>
-            <h2>Interested teams, please sign up now and be the first to hear when Precision Pit launches</h2>
+            <h2>Be first on the waiting list for Precision Pit before launch in the next couple of weeks.</h2>
             <p class="section-copy">
-              Precision Pit is getting close. Join the waiting list below and we will be ready to
-              notify you when the app is available to download.
+              Precision Pit is getting close. Join the waiting list now and we will let you know
+              as soon as the launch window opens and downloads are ready.
             </p>
           </div>
 
-          <div class="waitlist-card">
+          <div class="waitlist-card waitlist-preview-card">
             <div class="waitlist-copy">
               <h3>Join the Precision Pit waiting list</h3>
               <p>
-                Drop your info below if you want launch updates, app availability details, and the
-                first chance to download Precision Pit when it goes live.
+                Be one of the first teams in line for Precision Pit. Join now for launch updates,
+                app availability details, and first access when the app goes live in the next couple of weeks.
               </p>
               <ul class="waitlist-points">
                 <li>Perfect for team owners, drivers, and crew members planning ahead.</li>
                 <li>Helps us understand the number of Android vs. Apple device interests.</li>
                 <li>Gives you a direct email when Precision Pit is ready to launch.</li>
               </ul>
+              <button class="button button-primary waitlist-preview-button waitlist-open-trigger" type="button">
+                Join the Waiting List
+              </button>
             </div>
-
-            <form class="waitlist-form" id="waitlist-form">
-              <input type="text" name="website" tabindex="-1" autocomplete="off" class="waitlist-honeypot" />
-
-              <label class="waitlist-field">
-                <span>Name</span>
-                <div class="waitlist-field-control">
-                  <input type="text" name="fullName" placeholder="Enter name" />
-                  <button class="waitlist-clear" type="button" aria-label="Clear name field">x</button>
-                </div>
-              </label>
-
-              <label class="waitlist-field">
-                <span>Email address</span>
-                <div class="waitlist-field-control">
-                  <input type="email" name="email" placeholder="Enter email" required />
-                  <button class="waitlist-clear" type="button" aria-label="Clear email field">x</button>
-                </div>
-              </label>
-
-              <label class="waitlist-field">
-                <span>Team name</span>
-                <div class="waitlist-field-control">
-                  <input type="text" name="teamName" placeholder="Optional" />
-                  <button class="waitlist-clear" type="button" aria-label="Clear team name field">x</button>
-                </div>
-              </label>
-
-              <label class="waitlist-field">
-                <span>Device platform</span>
-                <input type="hidden" name="platformPreference" value="Either" />
-                <div class="waitlist-platform-row" role="group" aria-label="Device platform">
-                  <button class="waitlist-platform-button" type="button" data-platform="Android">Android</button>
-                  <button class="waitlist-platform-button" type="button" data-platform="iPhone">Apple</button>
-                </div>
-              </label>
-
-              <label class="waitlist-field">
-                <span>Message</span>
-                <div class="waitlist-field-control waitlist-field-control-textarea">
-                  <textarea
-                    name="notes"
-                    rows="4"
-                    placeholder="Any questions you might have, type them here."
-                  ></textarea>
-                  <button class="waitlist-clear" type="button" aria-label="Clear notes field">x</button>
-                </div>
-              </label>
-
-              <button class="waitlist-submit" type="submit">Join the Waiting List</button>
-              <p class="waitlist-status" id="waitlist-status" aria-live="polite"></p>
-            </form>
           </div>
 
-          <div class="support-card">
+          <div class="support-card" id="support-card">
             <div class="support-copy">
               <h3>Contact Precision Pit Support</h3>
               <p>
@@ -463,6 +414,72 @@
           </div> -->
         </section>
       </main>
+    </div>
+    <div class="waitlist-modal" id="waitlist-modal" hidden>
+      <div class="waitlist-modal-backdrop" data-waitlist-close="true"></div>
+      <div class="waitlist-modal-card" role="dialog" aria-modal="true" aria-label="Join the Precision Pit waiting list">
+        <button class="waitlist-modal-close" id="waitlist-modal-close" type="button" aria-label="Close waiting list form">X</button>
+        <div class="waitlist-modal-copy">
+          <p class="eyebrow">Launch Waitlist</p>
+          <h2>Be first to join the waiting list for Precision Pit.</h2>
+          <p class="section-copy">
+            Precision Pit is expected to launch within the next couple of weeks. Sign up now for
+            first access, launch timing, and download details as soon as they are ready.
+          </p>
+        </div>
+
+        <form class="waitlist-form" id="waitlist-form">
+          <input type="text" name="website" tabindex="-1" autocomplete="off" class="waitlist-honeypot" />
+
+          <label class="waitlist-field">
+            <span>Name</span>
+            <div class="waitlist-field-control">
+              <input type="text" name="fullName" placeholder="Enter name" />
+              <button class="waitlist-clear" type="button" aria-label="Clear name field">x</button>
+            </div>
+          </label>
+
+          <label class="waitlist-field">
+            <span>Email address</span>
+            <div class="waitlist-field-control">
+              <input type="email" name="email" placeholder="Enter email" required />
+              <button class="waitlist-clear" type="button" aria-label="Clear email field">x</button>
+            </div>
+          </label>
+
+          <label class="waitlist-field">
+            <span>Team name</span>
+            <div class="waitlist-field-control">
+              <input type="text" name="teamName" placeholder="Optional" />
+              <button class="waitlist-clear" type="button" aria-label="Clear team name field">x</button>
+            </div>
+          </label>
+
+          <label class="waitlist-field">
+            <span>Device platform</span>
+            <input type="hidden" name="platformPreference" value="Either" />
+            <div class="waitlist-platform-row" role="group" aria-label="Device platform">
+              <button class="waitlist-platform-button" type="button" data-platform="Android">Android</button>
+              <button class="waitlist-platform-button" type="button" data-platform="iPhone">Apple</button>
+            </div>
+          </label>
+
+          <label class="waitlist-field">
+            <span>Message</span>
+            <div class="waitlist-field-control waitlist-field-control-textarea">
+              <textarea
+                name="notes"
+                rows="4"
+                placeholder="Any questions you might have, type them here."
+              ></textarea>
+              <button class="waitlist-clear" type="button" aria-label="Clear notes field">x</button>
+            </div>
+          </label>
+
+          <button class="waitlist-submit" type="submit">Join the Waiting List</button>
+          <p class="waitlist-status" id="waitlist-status" aria-live="polite"></p>
+        </form>
+      </div>
     </div>
     <script src="./waitlist.js"></script>
     <script>

@@ -33,6 +33,7 @@ export default function PastRacesScreen({ navigation }: any) {
   const scrollRef = React.useRef<ScrollView>(null);
   const raceNights = useAppStore((state) => state.raceNights);
   const saveRaceNight = useAppStore((state) => state.saveRaceNight);
+  const isTeamOwner = useAppStore((state) => state.isTeamOwner);
   const [selectedYear, setSelectedYear] = useState<number | "all">("all");
   const today = useMemo(() => {
     const now = new Date();
@@ -174,6 +175,20 @@ export default function PastRacesScreen({ navigation }: any) {
                       <Text style={styles.printButtonText}>PRINT</Text>
                     </Pressable>
                   ) : null}
+                  {isTeamOwner ? (
+                    <Pressable
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        navigation.push("RaceNight", {
+                          raceNightId: night.id,
+                          editablePastRace: true,
+                        });
+                      }}
+                      style={styles.editLink}
+                    >
+                      <Text style={styles.editLinkText}>EDIT</Text>
+                    </Pressable>
+                  ) : null}
                   {!isEffectivelyCompleted ? (
                     <Pressable
                       onPress={(event) => {
@@ -306,6 +321,15 @@ const styles = StyleSheet.create({
   statusColumn: {
     alignItems: "flex-end",
     gap: 8,
+  },
+  editLink: {
+    paddingVertical: 2,
+  },
+  editLinkText: {
+    color: "#5AB3FF",
+    fontSize: 13,
+    fontWeight: "900",
+    textDecorationLine: "underline",
   },
   statusTag: {
     fontSize: 13,

@@ -9,10 +9,12 @@ import {
   Text,
   View,
 } from "react-native";
+import AppPressable from "../components/AppPressable";
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
+import { isVisiblePreferenceSelected } from "../data/teamPreferences";
 import { colors, spacing } from "../theme";
-import { useAppStore } from "../store/useAppStore";
+import { GearInventoryItem, useAppStore } from "../store/useAppStore";
 import { calculateGearRatio, formatGearRatio } from "../utils/gears";
 
 function sanitizeNumberInput(value: string) {
@@ -22,13 +24,21 @@ function sanitizeNumberInput(value: string) {
 const quickChangeGearOptions = Array.from({ length: 25 }, (_, index) => `${18 + index}`);
 
 export default function GearsScreen() {
-  const { userName, gearInventory, addGearInventoryItem, deleteGearInventoryItem } = useAppStore();
+  const {
+    userName,
+    gearInventory,
+    setupVisibilityPreferences,
+    addGearInventoryItem,
+    updateGearInventoryItem,
+    deleteGearInventoryItem,
+  } = useAppStore();
   const [label, setLabel] = useState("");
   const [ringTeeth, setRingTeeth] = useState("");
   const [pinionTeeth, setPinionTeeth] = useState("");
   const [quickChangeTopTeeth, setQuickChangeTopTeeth] = useState("");
   const [quickChangeBottomTeeth, setQuickChangeBottomTeeth] = useState("");
   const [notes, setNotes] = useState("");
+  const [editingGearId, setEditingGearId] = useState<string | null>(null);
   const [activeQuickChangeField, setActiveQuickChangeField] = useState<
     "quickChangeTopTeeth" | "quickChangeBottomTeeth" | null
   >(null);
@@ -37,28 +47,75 @@ export default function GearsScreen() {
     return calculateGearRatio(ringTeeth, pinionTeeth, quickChangeTopTeeth, quickChangeBottomTeeth);
   }, [pinionTeeth, quickChangeBottomTeeth, quickChangeTopTeeth, ringTeeth]);
 
-  const handleAddGear = async () => {
-    try {
-      await addGearInventoryItem({
-        label,
-        ringTeeth,
-        pinionTeeth,
-        quickChangeTopTeeth,
-        quickChangeBottomTeeth,
-        notes,
-      });
+  const showRingTeeth = isVisiblePreferenceSelected(setupVisibilityPreferences, "gears", "ringTeeth");
+  const showPinionTeeth = isVisiblePreferenceSelected(
+    setupVisibilityPreferences,
+    "gears",
+    "pinionTeeth",
+  );
+  const showQuickChangeTop = isVisiblePreferenceSelected(
+    setupVisibilityPreferences,
+    "gears",
+    "quickChangeTopTeeth",
+  );
+  const showQuickChangeBottom = isVisiblePreferenceSelected(
+    setupVisibilityPreferences,
+    "gears",
+    "quickChangeBottomTeeth",
+  );
+  const showGearNotes = isVisiblePreferenceSelected(setupVisibilityPreferences, "gears", "notes");
+  const showGearRatio = showRingTeeth && showPinionTeeth && showQuickChangeTop && showQuickChangeBottom;
 
-      setLabel("");
-      setRingTeeth("");
-      setPinionTeeth("");
-      setQuickChangeTopTeeth("");
-      setQuickChangeBottomTeeth("");
-      setNotes("");
-      Alert.alert("Saved", "Gear inventory item added.");
+  const resetForm = () => {
+    setLabel("");
+    setRingTeeth("");
+    setPinionTeeth("");
+    setQuickChangeTopTeeth("");
+    setQuickChangeBottomTeeth("");
+    setNotes("");
+    setEditingGearId(null);
+  };
+
+  const handleSaveGear = async () => {
+    try {
+      if (editingGearId) {
+        await updateGearInventoryItem(editingGearId, {
+          label,
+          ringTeeth,
+          pinionTeeth,
+          quickChangeTopTeeth,
+          quickChangeBottomTeeth,
+          notes,
+        });
+        resetForm();
+        Alert.alert("Saved", "Gear inventory item updated.");
+      } else {
+        await addGearInventoryItem({
+          label,
+          ringTeeth,
+          pinionTeeth,
+          quickChangeTopTeeth,
+          quickChangeBottomTeeth,
+          notes,
+        });
+        resetForm();
+        Alert.alert("Saved", "Gear inventory item added.");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save the gear item.";
       Alert.alert("Save failed", message);
     }
+  };
+
+  const handleStartEditGear = (gear: GearInventoryItem) => {
+    Keyboard.dismiss();
+    setEditingGearId(gear.id);
+    setLabel(gear.label);
+    setRingTeeth(gear.ringTeeth);
+    setPinionTeeth(gear.pinionTeeth);
+    setQuickChangeTopTeeth(gear.quickChangeTopTeeth);
+    setQuickChangeBottomTeeth(gear.quickChangeBottomTeeth);
+    setNotes(gear.notes);
   };
 
   const handleDeleteGear = (gearId: string, gearLabel: string) => {
@@ -72,6 +129,16 @@ export default function GearsScreen() {
         },
       },
     ]);
+  };
+
+  const handleClearQuickChangeField = () => {
+    if (activeQuickChangeField === "quickChangeTopTeeth") {
+      setQuickChangeTopTeeth("");
+    } else if (activeQuickChangeField === "quickChangeBottomTeeth") {
+      setQuickChangeBottomTeeth("");
+    }
+
+    setActiveQuickChangeField(null);
   };
 
   return (
@@ -92,6 +159,14 @@ export default function GearsScreen() {
       </Pressable>
 
       <View style={styles.card}>
+        {editingGearId ? (
+          <View style={styles.editingBanner}>
+            <Text style={styles.editingBannerText}>Editing saved gear</Text>
+            <Pressable onPress={resetForm} hitSlop={8}>
+              <Text style={styles.cancelEditLink}>Cancel Edit</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <Pressable onPress={Keyboard.dismiss}>
           <Text style={styles.label}>Gear Label</Text>
         </Pressable>
@@ -103,6 +178,7 @@ export default function GearsScreen() {
           onChangeText={setLabel}
         />
 
+        {showRingTeeth ? (
         <View style={styles.stackField}>
           <Pressable onPress={Keyboard.dismiss}>
             <Text style={styles.label}>Ring Teeth</Text>
@@ -116,7 +192,9 @@ export default function GearsScreen() {
             keyboardType="number-pad"
           />
         </View>
+        ) : null}
 
+        {showPinionTeeth ? (
         <View style={styles.stackField}>
           <Pressable onPress={Keyboard.dismiss}>
             <Text style={styles.label}>Pinion Teeth</Text>
@@ -130,8 +208,11 @@ export default function GearsScreen() {
             keyboardType="number-pad"
           />
         </View>
+        ) : null}
 
+        {showQuickChangeTop || showQuickChangeBottom ? (
         <View style={styles.quickChangeRow}>
+          {showQuickChangeTop ? (
           <View style={styles.quickChangeField}>
             <Pressable onPress={Keyboard.dismiss}>
               <Text style={styles.quickChangeLabel}>Top Quick-Change Gear</Text>
@@ -148,7 +229,9 @@ export default function GearsScreen() {
               </Text>
             </Pressable>
           </View>
+          ) : null}
 
+          {showQuickChangeBottom ? (
           <View style={styles.quickChangeField}>
             <Pressable onPress={Keyboard.dismiss}>
               <Text style={styles.quickChangeLabel}>Bottom Quick-Change Gear</Text>
@@ -165,22 +248,31 @@ export default function GearsScreen() {
               </Text>
             </Pressable>
           </View>
+          ) : null}
         </View>
+        ) : null}
 
+        {showGearRatio ? (
         <Pressable onPress={Keyboard.dismiss}>
           <Text style={styles.previewText}>
             {`Final Drive Ratio: ${formatGearRatio(previewRatio)}`}
           </Text>
         </Pressable>
+        ) : null}
+        {showGearRatio ? (
         <Pressable onPress={Keyboard.dismiss}>
           <Text style={styles.previewHint}>
             Ring/pinion ratio multiplied by top quick-change gear divided by bottom quick-change gear
           </Text>
         </Pressable>
+        ) : null}
 
+        {showGearNotes ? (
         <Pressable onPress={Keyboard.dismiss}>
           <Text style={styles.label}>Notes</Text>
         </Pressable>
+        ) : null}
+        {showGearNotes ? (
         <TextInput
           style={[styles.input, styles.notesInput]}
           placeholder="Track size, driver preference, rear-end notes..."
@@ -190,16 +282,19 @@ export default function GearsScreen() {
           multiline
           textAlignVertical="top"
         />
+        ) : null}
 
-        <Pressable
+        <AppPressable
           onPress={() => {
             Keyboard.dismiss();
-            void handleAddGear();
+            void handleSaveGear();
           }}
           style={styles.button}
         >
-          <Text style={styles.buttonText}>Add Gear To Inventory</Text>
-        </Pressable>
+          <Text style={styles.buttonText}>
+            {editingGearId ? "Save Gear Changes" : "Add Gear To Inventory"}
+          </Text>
+        </AppPressable>
       </View>
 
       <View style={styles.card}>
@@ -209,13 +304,14 @@ export default function GearsScreen() {
         {gearInventory.length ? (
           gearInventory.map((gear) => (
             <View key={gear.id} style={styles.inventoryRow}>
-              <View style={styles.inventoryCopy}>
+              <Pressable onPress={() => handleStartEditGear(gear)} style={styles.inventoryCopy}>
                 <Text style={styles.inventoryTitle}>{gear.label}</Text>
                 <Text style={styles.inventoryMeta}>
                   Ring {gear.ringTeeth} | Pinion {gear.pinionTeeth} | Top {gear.quickChangeTopTeeth} | Bottom {gear.quickChangeBottomTeeth} | Ratio {gear.ratio || "-"}
                 </Text>
                 {gear.notes ? <Text style={styles.inventoryNotes}>{gear.notes}</Text> : null}
-              </View>
+                <Text style={styles.inventoryEditHint}>Tap to edit</Text>
+              </Pressable>
               <Pressable
                 onPress={() => {
                   Keyboard.dismiss();
@@ -270,6 +366,12 @@ export default function GearsScreen() {
             <Pressable onPress={() => setActiveQuickChangeField(null)} style={styles.modalCloseButton}>
               <Text style={styles.modalCloseButtonText}>Close</Text>
             </Pressable>
+            <Pressable
+              onPress={handleClearQuickChangeField}
+              style={[styles.modalCloseButton, styles.modalClearButton]}
+            >
+              <Text style={styles.modalCloseButtonText}>Clear</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -304,6 +406,23 @@ const styles = StyleSheet.create({
     marginBottom: spacing(2),
     marginHorizontal: spacing(2),
     padding: spacing(2),
+  },
+  editingBanner: {
+    alignItems: "center",
+    marginBottom: spacing(1.25),
+  },
+  editingBannerText: {
+    color: "#8ED4FF",
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: spacing(0.35),
+    textTransform: "uppercase",
+  },
+  cancelEditLink: {
+    color: "#5AB3FF",
+    fontSize: 14,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   sectionLabel: {
     color: "#8ED4FF",
@@ -371,7 +490,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   notesInput: {
-    minHeight: 92,
+    lineHeight: 20,
+    minHeight: 112,
+    paddingBottom: 16,
+    paddingTop: 16,
     textAlign: "left",
   },
   previewText: {
@@ -427,6 +549,13 @@ const styles = StyleSheet.create({
     color: colors.subtext,
     fontSize: 13,
     lineHeight: 18,
+  },
+  inventoryEditHint: {
+    color: "#5AB3FF",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 6,
+    textDecorationLine: "underline",
   },
   deleteChip: {
     alignItems: "center",
@@ -500,6 +629,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     paddingVertical: 12,
+  },
+  modalClearButton: {
+    marginTop: spacing(0.75),
   },
   modalCloseButtonText: {
     color: "#5AB3FF",

@@ -11,10 +11,12 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import AppPressable from "../components/AppPressable";
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
+import { isVisiblePreferenceSelected } from "../data/teamPreferences";
 import { colors, spacing } from "../theme";
-import { TireSetup, useAppStore } from "../store/useAppStore";
+import { TireInventoryItem, TireSetup, useAppStore } from "../store/useAppStore";
 import {
   normalizeFractionMeasurementInput,
   sanitizeFractionMeasurementInput,
@@ -29,6 +31,7 @@ const tirePositionOptions = ["LF", "RF", "LR", "RR", "Spare"] as const;
 const circumferenceWholeNumberOptions = Array.from({ length: 18 }, (_, index) => `${79 + index}`);
 const circumferenceFractionOptions = ["0", "1/8", "1/4", "3/8", "1/2", "5/8", "3/4", "7/8"] as const;
 const TIRE_MEASUREMENT_DISPLAY_KEY = "tireMeasurementDisplay";
+type TiresCircumferenceFieldKey = keyof TireSetup | "inventoryCircumference";
 
 function sanitizeNumberInput(value: string) {
   const cleaned = value.replace(/[^0-9.]/g, "");
@@ -41,6 +44,9 @@ function TireCornerField({
   circumference,
   pressure,
   wheelOffset,
+  showCircumference,
+  showPressure,
+  showWheelOffset,
   onPressCircumference,
   onChangePressure,
   onChangeWheelOffset,
@@ -50,6 +56,9 @@ function TireCornerField({
   circumference: string;
   pressure: string;
   wheelOffset: string;
+  showCircumference: boolean;
+  showPressure: boolean;
+  showWheelOffset: boolean;
   onPressCircumference: () => void;
   onChangePressure: (value: string) => void;
   onChangeWheelOffset: (value: string) => void;
@@ -61,39 +70,51 @@ function TireCornerField({
         <Text style={styles.cornerTitle}>{label}</Text>
       </Pressable>
 
-      <Pressable onPress={Keyboard.dismiss}>
-        <Text style={styles.label}>Circumference</Text>
-      </Pressable>
-      <Pressable onPress={onPressCircumference} style={[styles.input, styles.circumferenceButton]}>
-        <Text style={circumference ? styles.inputValue : styles.inputPlaceholder}>
-          {circumference || "Select"}
-        </Text>
-      </Pressable>
+      {showCircumference ? (
+        <>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Circumference</Text>
+          </Pressable>
+          <Pressable onPress={onPressCircumference} style={[styles.input, styles.circumferenceButton]}>
+            <Text style={circumference ? styles.inputValue : styles.inputPlaceholder}>
+              {circumference || "Select"}
+            </Text>
+          </Pressable>
+        </>
+      ) : null}
 
-      <Pressable onPress={Keyboard.dismiss}>
-        <Text style={styles.label}>Pressure</Text>
-      </Pressable>
-      <TextInput
-        style={[styles.input, styles.inputCompact]}
-        placeholder=""
-        placeholderTextColor="#4F7390"
-        value={pressure}
-        onChangeText={(value) => onChangePressure(sanitizeNumberInput(value))}
-        keyboardType="decimal-pad"
-      />
+      {showPressure ? (
+        <>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Pressure</Text>
+          </Pressable>
+          <TextInput
+            style={[styles.input, styles.inputCompact]}
+            placeholder=""
+            placeholderTextColor="#4F7390"
+            value={pressure}
+            onChangeText={(value) => onChangePressure(sanitizeNumberInput(value))}
+            keyboardType="decimal-pad"
+          />
+        </>
+      ) : null}
 
-      <Pressable onPress={Keyboard.dismiss}>
-        <Text style={styles.label}>Wheel Offset</Text>
-      </Pressable>
-      <TextInput
-        style={[styles.input, styles.inputCompact]}
-        placeholder=""
-        placeholderTextColor="#4F7390"
-        value={wheelOffset}
-        onChangeText={(value) => onChangeWheelOffset(sanitizeFractionMeasurementInput(value))}
-        onBlur={onBlurWheelOffset}
-        keyboardType="number-pad"
-      />
+      {showWheelOffset ? (
+        <>
+          <Pressable onPress={Keyboard.dismiss}>
+            <Text style={styles.label}>Wheel Offset</Text>
+          </Pressable>
+          <TextInput
+            style={[styles.input, styles.inputCompact]}
+            placeholder=""
+            placeholderTextColor="#4F7390"
+            value={wheelOffset}
+            onChangeText={(value) => onChangeWheelOffset(sanitizeFractionMeasurementInput(value))}
+            onBlur={onBlurWheelOffset}
+            keyboardType="number-pad"
+          />
+        </>
+      ) : null}
     </View>
   );
 }
@@ -102,9 +123,11 @@ export default function TiresScreen() {
   const {
     userName,
     tireSetup,
+    setupVisibilityPreferences,
     tireInventory,
     saveTireSetup,
     addTireInventoryItem,
+    updateTireInventoryItem,
     deleteTireInventoryItem,
   } = useAppStore();
 
@@ -115,8 +138,11 @@ export default function TiresScreen() {
   );
   const [inventoryCircumference, setInventoryCircumference] = useState("");
   const [inventoryPressure, setInventoryPressure] = useState("");
+  const [inventoryWheelOffset, setInventoryWheelOffset] = useState("");
   const [inventoryNotes, setInventoryNotes] = useState("");
-  const [activeCircumferenceField, setActiveCircumferenceField] = useState<keyof TireSetup | null>(null);
+  const [editingTireId, setEditingTireId] = useState<string | null>(null);
+  const [activeCircumferenceField, setActiveCircumferenceField] =
+    useState<TiresCircumferenceFieldKey | null>(null);
   const [selectedWholeNumber, setSelectedWholeNumber] = useState("");
   const [selectedFraction, setSelectedFraction] = useState<(typeof circumferenceFractionOptions)[number]>("0");
   const [displayMode, setDisplayMode] = useState<TireMeasurementDisplayMode>("fraction");
@@ -154,7 +180,10 @@ export default function TiresScreen() {
       return;
     }
 
-    const currentValue = draftSetup[activeCircumferenceField];
+    const currentValue =
+      activeCircumferenceField === "inventoryCircumference"
+        ? inventoryCircumference
+        : draftSetup[activeCircumferenceField];
     const match = currentValue.trim().match(/^(\d+)(?:\s+((?:1|3|5|7)\/8|1\/4|1\/2|3\/4))?$/);
 
     if (!match) {
@@ -165,7 +194,7 @@ export default function TiresScreen() {
 
     setSelectedWholeNumber(match[1]);
     setSelectedFraction((match[2] as (typeof circumferenceFractionOptions)[number] | undefined) ?? "0");
-  }, [activeCircumferenceField, draftSetup]);
+  }, [activeCircumferenceField, draftSetup, inventoryCircumference]);
 
   const frontStaggerValue = useMemo(
     () => calculateStaggerValue(draftSetup.lfCircumference, draftSetup.rfCircumference),
@@ -177,6 +206,29 @@ export default function TiresScreen() {
   );
   const frontStagger = frontStaggerValue == null ? "-" : formatMeasurementValue(frontStaggerValue, displayMode);
   const rearStagger = rearStaggerValue == null ? "-" : formatMeasurementValue(rearStaggerValue, displayMode);
+
+  const canShowCorner = (cornerPrefix: "lf" | "rf" | "lr" | "rr") =>
+    isVisiblePreferenceSelected(
+      setupVisibilityPreferences,
+      "tires",
+      `${cornerPrefix}Circumference`,
+    ) ||
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", `${cornerPrefix}Pressure`) ||
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", `${cornerPrefix}WheelOffset`);
+
+  const visibleTireCorners = [
+    { id: "lf", label: "Left Front", circumferenceKey: "lfCircumference", pressureKey: "lfPressure", wheelOffsetKey: "lfWheelOffset" },
+    { id: "rf", label: "Right Front", circumferenceKey: "rfCircumference", pressureKey: "rfPressure", wheelOffsetKey: "rfWheelOffset" },
+    { id: "lr", label: "Left Rear", circumferenceKey: "lrCircumference", pressureKey: "lrPressure", wheelOffsetKey: "lrWheelOffset" },
+    { id: "rr", label: "Right Rear", circumferenceKey: "rrCircumference", pressureKey: "rrPressure", wheelOffsetKey: "rrWheelOffset" },
+  ].filter((corner) => canShowCorner(corner.id as "lf" | "rf" | "lr" | "rr"));
+
+  const showFrontStagger =
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", "lfCircumference") &&
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", "rfCircumference");
+  const showRearStagger =
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", "lrCircumference") &&
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", "rrCircumference");
 
   const handleSetupChange = (field: keyof TireSetup, value: string) => {
     setDraftSetup((current) => ({
@@ -192,7 +244,7 @@ export default function TiresScreen() {
     }));
   };
 
-  const handleOpenCircumferencePicker = (field: keyof TireSetup) => {
+  const handleOpenCircumferencePicker = (field: TiresCircumferenceFieldKey) => {
     setActiveCircumferenceField(field);
   };
 
@@ -204,6 +256,10 @@ export default function TiresScreen() {
     }
 
     if (selectedFraction === "0") {
+      if (activeCircumferenceField === "inventoryCircumference") {
+        setInventoryCircumference(wholeNumber);
+        return;
+      }
       handleSetupChange(activeCircumferenceField, wholeNumber);
     }
   };
@@ -214,7 +270,11 @@ export default function TiresScreen() {
     }
 
     const nextValue = fraction === "0" ? selectedWholeNumber : `${selectedWholeNumber} ${fraction}`;
-    handleSetupChange(activeCircumferenceField, nextValue);
+    if (activeCircumferenceField === "inventoryCircumference") {
+      setInventoryCircumference(nextValue);
+    } else {
+      handleSetupChange(activeCircumferenceField, nextValue);
+    }
     setSelectedFraction(fraction);
     setActiveCircumferenceField(null);
   };
@@ -237,24 +297,58 @@ export default function TiresScreen() {
 
   const handleAddInventoryItem = async () => {
     try {
-      await addTireInventoryItem({
-        label: inventoryLabel,
-        position: inventoryPosition,
-        circumference: inventoryCircumference,
-        pressure: inventoryPressure,
-        notes: inventoryNotes,
-      });
-
-      setInventoryLabel("");
-      setInventoryPosition("LF");
-      setInventoryCircumference("");
-      setInventoryPressure("");
-      setInventoryNotes("");
-      Alert.alert("Saved", "Tire inventory item added.");
+      if (editingTireId) {
+        await updateTireInventoryItem(editingTireId, {
+          label: inventoryLabel,
+          position: inventoryPosition,
+          circumference: inventoryCircumference,
+          pressure: inventoryPressure,
+          wheelOffset: normalizeFractionMeasurementInput(inventoryWheelOffset),
+          notes: inventoryNotes,
+        });
+        resetInventoryForm();
+        Alert.alert("Saved", "Tire inventory item updated.");
+      } else {
+        await addTireInventoryItem({
+          label: inventoryLabel,
+          position: inventoryPosition,
+          circumference: inventoryCircumference,
+          pressure: inventoryPressure,
+          wheelOffset: normalizeFractionMeasurementInput(inventoryWheelOffset),
+          notes: inventoryNotes,
+        });
+        resetInventoryForm();
+        Alert.alert("Saved", "Tire inventory item added.");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save the tire item.";
       Alert.alert("Save failed", message);
     }
+  };
+
+  const resetInventoryForm = () => {
+    setInventoryLabel("");
+    setInventoryPosition("LF");
+    setInventoryCircumference("");
+    setInventoryPressure("");
+    setInventoryWheelOffset("");
+    setInventoryNotes("");
+    setEditingTireId(null);
+  };
+
+  const handleStartEditInventoryItem = (tire: TireInventoryItem) => {
+    Keyboard.dismiss();
+    setEditingTireId(tire.id);
+    setInventoryLabel(tire.label);
+    setInventoryPosition((tire.position.toUpperCase() as (typeof tirePositionOptions)[number]) || "LF");
+    setInventoryCircumference(tire.circumference);
+    setInventoryPressure(tire.pressure);
+    setInventoryWheelOffset(tire.wheelOffset);
+    setInventoryNotes(tire.notes);
+    setExpandedSections((current) => ({
+      ...current,
+      tireInventory: true,
+    }));
   };
 
   const handleDeleteInventoryItem = (tireId: string, label: string) => {
@@ -312,70 +406,72 @@ export default function TiresScreen() {
             </Pressable>
 
             <View style={styles.cornerGrid}>
-              <TireCornerField
-                label="LF"
-                circumference={draftSetup.lfCircumference}
-              pressure={draftSetup.lfPressure}
-              wheelOffset={draftSetup.lfWheelOffset}
-              onPressCircumference={() => handleOpenCircumferencePicker("lfCircumference")}
-              onChangePressure={(value) => handleSetupChange("lfPressure", value)}
-              onChangeWheelOffset={(value) => handleSetupChange("lfWheelOffset", value)}
-              onBlurWheelOffset={() => handleWheelOffsetBlur("lfWheelOffset")}
-            />
-            <TireCornerField
-              label="RF"
-              circumference={draftSetup.rfCircumference}
-              pressure={draftSetup.rfPressure}
-              wheelOffset={draftSetup.rfWheelOffset}
-              onPressCircumference={() => handleOpenCircumferencePicker("rfCircumference")}
-              onChangePressure={(value) => handleSetupChange("rfPressure", value)}
-              onChangeWheelOffset={(value) => handleSetupChange("rfWheelOffset", value)}
-              onBlurWheelOffset={() => handleWheelOffsetBlur("rfWheelOffset")}
-            />
-            <TireCornerField
-              label="LR"
-              circumference={draftSetup.lrCircumference}
-              pressure={draftSetup.lrPressure}
-              wheelOffset={draftSetup.lrWheelOffset}
-              onPressCircumference={() => handleOpenCircumferencePicker("lrCircumference")}
-              onChangePressure={(value) => handleSetupChange("lrPressure", value)}
-              onChangeWheelOffset={(value) => handleSetupChange("lrWheelOffset", value)}
-              onBlurWheelOffset={() => handleWheelOffsetBlur("lrWheelOffset")}
-            />
-            <TireCornerField
-              label="RR"
-              circumference={draftSetup.rrCircumference}
-              pressure={draftSetup.rrPressure}
-              wheelOffset={draftSetup.rrWheelOffset}
-              onPressCircumference={() => handleOpenCircumferencePicker("rrCircumference")}
-              onChangePressure={(value) => handleSetupChange("rrPressure", value)}
-              onChangeWheelOffset={(value) => handleSetupChange("rrWheelOffset", value)}
-              onBlurWheelOffset={() => handleWheelOffsetBlur("rrWheelOffset")}
-            />
+              {visibleTireCorners.map((corner) => (
+                <TireCornerField
+                  key={corner.id}
+                  label={corner.id.toUpperCase()}
+                  circumference={draftSetup[corner.circumferenceKey as keyof TireSetup]}
+                  pressure={draftSetup[corner.pressureKey as keyof TireSetup]}
+                  wheelOffset={draftSetup[corner.wheelOffsetKey as keyof TireSetup]}
+                  showCircumference={isVisiblePreferenceSelected(
+                    setupVisibilityPreferences,
+                    "tires",
+                    corner.circumferenceKey,
+                  )}
+                  showPressure={isVisiblePreferenceSelected(
+                    setupVisibilityPreferences,
+                    "tires",
+                    corner.pressureKey,
+                  )}
+                  showWheelOffset={isVisiblePreferenceSelected(
+                    setupVisibilityPreferences,
+                    "tires",
+                    corner.wheelOffsetKey,
+                  )}
+                  onPressCircumference={() =>
+                    handleOpenCircumferencePicker(corner.circumferenceKey as keyof TireSetup)
+                  }
+                  onChangePressure={(value) =>
+                    handleSetupChange(corner.pressureKey as keyof TireSetup, value)
+                  }
+                  onChangeWheelOffset={(value) =>
+                    handleSetupChange(corner.wheelOffsetKey as keyof TireSetup, value)
+                  }
+                  onBlurWheelOffset={() =>
+                    handleWheelOffsetBlur(corner.wheelOffsetKey as keyof TireSetup)
+                  }
+                />
+              ))}
             </View>
 
-            <Pressable onPress={Keyboard.dismiss}>
-              <View style={styles.staggerRow}>
-              <View style={styles.staggerCard}>
-                <Text style={styles.staggerLabel}>Front Stagger</Text>
-                <Text style={styles.staggerValue}>{frontStagger}</Text>
-                <Text style={styles.staggerHint}>
-                  RF minus LF | {displayMode === "fraction" ? "Fractions" : "Decimals"}
-                </Text>
-              </View>
-              <View style={styles.staggerCard}>
-                <Text style={styles.staggerLabel}>Rear Stagger</Text>
-                <Text style={styles.staggerValue}>{rearStagger}</Text>
-                <Text style={styles.staggerHint}>
-                  RR minus LR | {displayMode === "fraction" ? "Fractions" : "Decimals"}
-                </Text>
-              </View>
-              </View>
-            </Pressable>
+            {showFrontStagger || showRearStagger ? (
+              <Pressable onPress={Keyboard.dismiss}>
+                <View style={styles.staggerRow}>
+                  {showFrontStagger ? (
+                    <View style={styles.staggerCard}>
+                      <Text style={styles.staggerLabel}>Front Stagger</Text>
+                      <Text style={styles.staggerValue}>{frontStagger}</Text>
+                      <Text style={styles.staggerHint}>
+                        RF minus LF | {displayMode === "fraction" ? "Fractions" : "Decimals"}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {showRearStagger ? (
+                    <View style={styles.staggerCard}>
+                      <Text style={styles.staggerLabel}>Rear Stagger</Text>
+                      <Text style={styles.staggerValue}>{rearStagger}</Text>
+                      <Text style={styles.staggerHint}>
+                        RR minus LR | {displayMode === "fraction" ? "Fractions" : "Decimals"}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </Pressable>
+            ) : null}
 
-            <Pressable onPress={handleSaveSetup} style={styles.button}>
+            <AppPressable onPress={handleSaveSetup} style={styles.button}>
               <Text style={styles.buttonText}>Save Tire Settings</Text>
-            </Pressable>
+            </AppPressable>
           </>
         ) : null}
       </View>
@@ -396,6 +492,14 @@ export default function TiresScreen() {
 
         {expandedSections.tireInventory ? (
           <>
+            {editingTireId ? (
+              <View style={styles.editingBanner}>
+                <Text style={styles.editingBannerText}>Editing saved tire</Text>
+                <Pressable onPress={resetInventoryForm} hitSlop={8}>
+                  <Text style={styles.cancelEditLink}>Cancel Edit</Text>
+                </Pressable>
+              </View>
+            ) : null}
             <Text style={styles.label}>Tire Label</Text>
             <TextInput
               style={styles.input}
@@ -431,14 +535,14 @@ export default function TiresScreen() {
             <View style={styles.inventoryGrid}>
               <View style={styles.inventoryField}>
                 <Text style={styles.label}>Circumference</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder=""
-                  placeholderTextColor="#4F7390"
-                  value={inventoryCircumference}
-                  onChangeText={(value) => setInventoryCircumference(sanitizeNumberInput(value))}
-                  keyboardType="decimal-pad"
-                />
+                <Pressable
+                  onPress={() => handleOpenCircumferencePicker("inventoryCircumference")}
+                  style={[styles.input, styles.circumferenceButton]}
+                >
+                  <Text style={inventoryCircumference ? styles.inputValue : styles.inputPlaceholder}>
+                    {inventoryCircumference || "Select"}
+                  </Text>
+                </Pressable>
               </View>
 
               <View style={styles.inventoryField}>
@@ -454,6 +558,19 @@ export default function TiresScreen() {
               </View>
             </View>
 
+            <Text style={styles.label}>Wheel Offset</Text>
+            <TextInput
+              style={styles.input}
+              placeholder=""
+              placeholderTextColor="#4F7390"
+              value={inventoryWheelOffset}
+              onChangeText={(value) => setInventoryWheelOffset(sanitizeFractionMeasurementInput(value))}
+              onBlur={() =>
+                setInventoryWheelOffset((current) => normalizeFractionMeasurementInput(current))
+              }
+              keyboardType="number-pad"
+            />
+
             <Text style={styles.label}>Notes</Text>
             <TextInput
               style={[styles.input, styles.notesInput]}
@@ -465,25 +582,28 @@ export default function TiresScreen() {
               textAlignVertical="top"
             />
 
-            <Pressable onPress={handleAddInventoryItem} style={styles.button}>
-              <Text style={styles.buttonText}>Add Tire To Inventory</Text>
-            </Pressable>
+            <AppPressable onPress={handleAddInventoryItem} style={styles.button}>
+              <Text style={styles.buttonText}>
+                {editingTireId ? "Save Tire Changes" : "Add Tire To Inventory"}
+              </Text>
+            </AppPressable>
           </>
         ) : null}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionLabel}>Saved Inventory</Text>
+        <Text style={styles.sectionLabel}>Saved Tire Inventory</Text>
         {tireInventory.length ? (
           tireInventory.map((tire) => (
             <View key={tire.id} style={styles.inventoryRow}>
-              <View style={styles.inventoryCopy}>
+              <Pressable onPress={() => handleStartEditInventoryItem(tire)} style={styles.inventoryCopy}>
                 <Text style={styles.inventoryTitle}>{tire.label}</Text>
                 <Text style={styles.inventoryMeta}>
-                  {tire.position} | Circumference {tire.circumference} | Pressure {tire.pressure}
+                  {tire.position} | Circumference {tire.circumference} | Pressure {tire.pressure} | Wheel Offset {tire.wheelOffset || "-"}
                 </Text>
                 {tire.notes ? <Text style={styles.inventoryNotes}>{tire.notes}</Text> : null}
-              </View>
+                <Text style={styles.inventoryEditHint}>Tap to edit</Text>
+              </Pressable>
               <Pressable
                 onPress={() => handleDeleteInventoryItem(tire.id, tire.label)}
                 style={styles.deleteChip}
@@ -657,6 +777,23 @@ const styles = StyleSheet.create({
     marginBottom: spacing(2),
     marginHorizontal: spacing(2),
     padding: spacing(2),
+  },
+  editingBanner: {
+    alignItems: "center",
+    marginBottom: spacing(1.25),
+  },
+  editingBannerText: {
+    color: "#8ED4FF",
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: spacing(0.35),
+    textTransform: "uppercase",
+  },
+  cancelEditLink: {
+    color: "#5AB3FF",
+    fontSize: 14,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   sectionLabel: {
     color: "#8ED4FF",
@@ -881,6 +1018,13 @@ const styles = StyleSheet.create({
     color: colors.subtext,
     fontSize: 12,
     lineHeight: 18,
+  },
+  inventoryEditHint: {
+    color: "#5AB3FF",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 6,
+    textDecorationLine: "underline",
   },
   deleteChip: {
     alignItems: "center",

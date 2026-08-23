@@ -7,6 +7,9 @@
   const videoLightboxPlayer = document.getElementById("video-lightbox-player");
   const videoLightboxClose = document.getElementById("video-lightbox-close");
   const videoTriggers = Array.from(document.querySelectorAll(".video-trigger"));
+  const waitlistModal = document.getElementById("waitlist-modal");
+  const waitlistModalClose = document.getElementById("waitlist-modal-close");
+  const waitlistOpenTriggers = Array.from(document.querySelectorAll(".waitlist-open-trigger"));
   const waitlistForm = document.getElementById("waitlist-form");
   const waitlistStatus = document.getElementById("waitlist-status");
   let activeOverlay = null;
@@ -129,6 +132,57 @@
     });
   }
 
+  if (waitlistModal && waitlistModalClose) {
+    const openWaitlistModal = (pushHistory = true) => {
+      waitlistModal.hidden = false;
+      activeOverlay = "waitlist";
+      syncBodyScroll();
+      if (pushHistory) {
+        pushOverlayHistory("waitlist");
+      }
+    };
+
+    const closeWaitlistModal = () => {
+      waitlistModal.hidden = true;
+      if (activeOverlay === "waitlist") {
+        activeOverlay = null;
+      }
+      syncBodyScroll();
+    };
+
+    waitlistOpenTriggers.forEach((trigger) => {
+      trigger.addEventListener("click", () => {
+        openWaitlistModal(true);
+      });
+    });
+
+    waitlistModal.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      if (target.dataset.waitlistClose === "true") {
+        requestOverlayClose(closeWaitlistModal);
+      }
+    });
+
+    waitlistModalClose.addEventListener("click", () => requestOverlayClose(closeWaitlistModal));
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !waitlistModal.hidden) {
+        requestOverlayClose(closeWaitlistModal);
+      }
+    });
+
+    if (document.body.dataset.waitlistAutoOpened !== "true") {
+      document.body.dataset.waitlistAutoOpened = "true";
+      window.requestAnimationFrame(() => {
+        openWaitlistModal(true);
+      });
+    }
+  }
+
   window.addEventListener("popstate", () => {
     if (!activeOverlay) {
       overlayHistoryOpen = false;
@@ -148,6 +202,10 @@
       videoLightboxPlayer.pause();
       videoLightboxPlayer.removeAttribute("src");
       videoLightboxPlayer.load();
+    }
+
+    if (activeOverlay === "waitlist" && waitlistModal) {
+      waitlistModal.hidden = true;
     }
 
     activeOverlay = null;

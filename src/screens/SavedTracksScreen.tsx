@@ -15,8 +15,8 @@ export default function SavedTracksScreen() {
   const addSavedTrack = useAppStore((state) => state.addSavedTrack);
   const deleteSavedTrack = useAppStore((state) => state.deleteSavedTrack);
   const [name, setName] = useState("");
-  const [trackType, setTrackType] = useState("Dirt Oval");
-  const [banking, setBanking] = useState<(typeof bankingOptions)[number]>("Semi-Bank");
+  const [trackType, setTrackType] = useState("");
+  const [banking, setBanking] = useState<"" | (typeof bankingOptions)[number]>("");
   const [length, setLength] = useState("");
   const [notes, setNotes] = useState("");
   const [showTrackTypeMenu, setShowTrackTypeMenu] = useState(false);
@@ -40,8 +40,8 @@ export default function SavedTracksScreen() {
 
   const resetForm = () => {
     setName("");
-    setTrackType("Dirt Oval");
-    setBanking("Semi-Bank");
+    setTrackType("");
+    setBanking("");
     setLength("");
     setNotes("");
     setShowTrackTypeMenu(false);
@@ -108,7 +108,7 @@ export default function SavedTracksScreen() {
                       key={`${track.name}-${track.state}`}
                       onPress={() => {
                         setName(track.name);
-                        setTrackType(track.trackType || "Dirt Oval");
+                        setTrackType(track.trackType || "");
                         if (track.banking) {
                           setBanking(track.banking);
                         }
@@ -147,7 +147,9 @@ export default function SavedTracksScreen() {
               }}
               style={styles.dropdownButton}
             >
-              <Text style={styles.dropdownValue}>{trackType}</Text>
+              <Text style={trackType ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                {trackType || "Select track type"}
+              </Text>
               <Text style={styles.dropdownCaret}>{showTrackTypeMenu ? "▲" : "▼"}</Text>
             </Pressable>
 
@@ -187,7 +189,9 @@ export default function SavedTracksScreen() {
               }}
               style={styles.dropdownButton}
             >
-              <Text style={styles.dropdownValue}>{banking}</Text>
+              <Text style={banking ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                {banking || "Select banking"}
+              </Text>
               <Text style={styles.dropdownCaret}>{showBankingMenu ? "▲" : "▼"}</Text>
             </Pressable>
 

@@ -576,9 +576,9 @@ export default function EventsScreen({ navigation, route }: any) {
             setShowTrackMenu(false);
             navigation.getParent()?.navigate("PastRaces");
           }}
-          style={styles.secondaryButton}
+          style={styles.pastRacesButton}
         >
-          <Text style={styles.secondaryButtonText}>Past Races</Text>
+          <Text style={styles.pastRacesButtonText}>Past Races</Text>
         </Pressable>
 
         <DatePickerModal
@@ -833,6 +833,18 @@ const styles = StyleSheet.create({
     color: "#8ED4FF",
     fontSize: 16,
     fontWeight: "700",
+  },
+  pastRacesButton: {
+    alignItems: "center",
+    backgroundColor: "#5AB3FF",
+    borderRadius: 999,
+    marginBottom: spacing(2),
+    paddingVertical: 14,
+  },
+  pastRacesButtonText: {
+    color: colors.bg,
+    fontSize: 16,
+    fontWeight: "800",
   },
   inlineLinkText: {
     color: "#5AB3FF",

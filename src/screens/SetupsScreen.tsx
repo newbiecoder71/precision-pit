@@ -5,19 +5,21 @@ import { getSetupSectionsForRacingType } from "../data/racing";
 import { colors, spacing } from "../theme";
 import { useAppStore } from "../store/useAppStore";
 
-export default function SetupsScreen({ navigation }: any) {
+export default function SetupsScreen({ navigation, route }: any) {
   const scrollRef = React.useRef<ScrollView>(null);
   const {
     userName,
     raceCarType,
+    carClass,
     chassisSetup,
     suspensionSetup,
     tireSetup,
     gearInventory,
   } =
     useAppStore();
-  const setupSections = getSetupSectionsForRacingType(raceCarType);
-  const isSprintCars = raceCarType === "Sprint Car";
+  const setupType = raceCarType === "Karting" ? carClass || "Karting" : raceCarType;
+  const setupSections = getSetupSectionsForRacingType(setupType);
+  const isSprintCars = setupType === "Sprint Car";
   const hasChassisNotes = Object.values(chassisSetup).some((value) => value.trim().length > 0);
   const hasSuspensionNotes = [
     suspensionSetup.frontSprings,
@@ -39,6 +41,23 @@ export default function SetupsScreen({ navigation }: any) {
       return () => clearTimeout(timeout);
     }, []),
   );
+
+  const openSetupDestination = (destination: string, params?: Record<string, unknown>) => {
+    const parentNavigation = navigation.getParent?.();
+    const openedFromStack = route?.name === "SetupsOverview";
+
+    if (openedFromStack && parentNavigation?.push) {
+      parentNavigation.push(destination, params);
+      return;
+    }
+
+    if (destination === "Chassis" || destination === "KartingSetup") {
+      parentNavigation?.navigate(destination, params);
+      return;
+    }
+
+    navigation.navigate(destination, params);
+  };
 
   return (
     <ScrollView ref={scrollRef} contentContainerStyle={styles.container}>
@@ -62,8 +81,26 @@ export default function SetupsScreen({ navigation }: any) {
         <Pressable
           key={section.title}
           onPress={() => {
+            if (
+              section.title === "Kart Chassis" ||
+              section.title === "Tires" ||
+              section.title === "Gears" ||
+              section.title === "Track & Driver Notes"
+            ) {
+              if (route?.name === "SetupsOverview") {
+                openSetupDestination("KartingSetup", { section: section.title });
+              } else {
+                navigation.getParent()?.navigate("KartingSetup", { section: section.title });
+              }
+              return;
+            }
+
             if (section.title === "Chassis") {
-              navigation.getParent()?.navigate("Chassis");
+              if (route?.name === "SetupsOverview") {
+                openSetupDestination("Chassis");
+              } else {
+                navigation.getParent()?.navigate("Chassis");
+              }
               return;
             }
 
@@ -72,21 +109,25 @@ export default function SetupsScreen({ navigation }: any) {
               section.title === "Front Suspension" ||
               section.title === "Rear Suspension"
             ) {
-              navigation.navigate("Shocks");
+              openSetupDestination(route?.name === "SetupsOverview" ? "ShocksDetail" : "Shocks");
               return;
             }
 
             if (section.title === "Tires & Wheels") {
-              navigation.navigate("Tires");
+              openSetupDestination(route?.name === "SetupsOverview" ? "TiresDetail" : "Tires");
               return;
             }
 
             if (section.title === "Driveline") {
-              navigation.navigate("Gears");
+              openSetupDestination(route?.name === "SetupsOverview" ? "GearsDetail" : "Gears");
             }
           }}
           style={[
             styles.sectionCard,
+            section.title === "Kart Chassis" ||
+            section.title === "Tires" ||
+            section.title === "Gears" ||
+            section.title === "Track & Driver Notes" ||
             section.title === "Chassis" ||
             section.title === "Suspension" ||
             section.title === "Front Suspension" ||
@@ -98,7 +139,15 @@ export default function SetupsScreen({ navigation }: any) {
           ]}
         >
           <Text style={styles.sectionTitle}>{section.title}</Text>
-          {section.title === "Chassis" ? (
+          {section.title === "Kart Chassis" ? (
+            <Text style={styles.sectionActionMeta}>Tap to open saved kart chassis settings</Text>
+          ) : section.title === "Tires" ? (
+            <Text style={styles.sectionActionMeta}>Tap to open saved kart tire settings</Text>
+          ) : section.title === "Gears" ? (
+            <Text style={styles.sectionActionMeta}>Tap to open saved kart gear settings</Text>
+          ) : section.title === "Track & Driver Notes" ? (
+            <Text style={styles.sectionActionMeta}>Tap to open saved kart track and driver notes</Text>
+          ) : section.title === "Chassis" ? (
             <Text style={styles.sectionActionMeta}>
               {hasChassisNotes ? "Tap to edit saved chassis settings" : "Tap to enter chassis settings"}
             </Text>

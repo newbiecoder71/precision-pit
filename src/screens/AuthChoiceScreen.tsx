@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
+import AppPressable from "../components/AppPressable";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../theme";
@@ -21,23 +22,23 @@ export default function AuthChoiceScreen({ navigation }: any) {
             link.
           </Text>
 
-          <Pressable
+          <AppPressable
             onPress={() => navigation.navigate("CreateAccount")}
             style={[styles.button, styles.primaryButton]}
           >
             <Text style={styles.primaryButtonText}>Create Team</Text>
-          </Pressable>
+          </AppPressable>
 
-          <Pressable
+          <AppPressable
             onPress={() => navigation.navigate("Login")}
             style={[styles.button, styles.secondaryButton]}
           >
             <Text style={styles.secondaryButtonText}>Log In</Text>
-          </Pressable>
+          </AppPressable>
 
-          <Pressable onPress={() => navigation.navigate("AcceptInvite")} style={styles.linkButton}>
+          <AppPressable onPress={() => navigation.navigate("AcceptInvite")} style={styles.linkButton}>
             <Text style={styles.linkText}>Join Team</Text>
-          </Pressable>
+          </AppPressable>
         </View>
       </SafeAreaView>
     </LinearGradient>

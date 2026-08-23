@@ -15,7 +15,9 @@ alter table public.teams
   add column if not exists car_class text,
   add column if not exists engine_type text,
   add column if not exists fuel_type text,
-  add column if not exists carburetor_type text;
+  add column if not exists carburetor_type text,
+  add column if not exists setup_visibility_preferences jsonb,
+  add column if not exists checklist_visibility_preferences jsonb;
 
 create table if not exists public.team_members (
   id uuid primary key default gen_random_uuid(),

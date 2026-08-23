@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import TextInput from "../components/AppTextInput";
+import AppPressable from "../components/AppPressable";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -65,9 +66,9 @@ export default function CreateTeamScreen() {
             keyboardDismissMode="none"
             keyboardShouldPersistTaps="always"
           >
-            <Pressable onPress={() => navigation.navigate("AuthChoice")} style={styles.backButton}>
+            <AppPressable onPress={() => navigation.navigate("AuthChoice")} style={styles.backButton}>
               <Text style={styles.backButtonText}>{"< Back"}</Text>
-            </Pressable>
+            </AppPressable>
 
             <View style={styles.formWrap}>
               <Text style={styles.title}>Create Team</Text>
@@ -156,9 +157,9 @@ export default function CreateTeamScreen() {
               number, and symbol.
             </Text>
 
-              <Pressable onPress={handleSubmit} style={styles.button}>
+              <AppPressable onPress={handleSubmit} style={styles.button}>
                 <Text style={styles.buttonText}>Create Team</Text>
-              </Pressable>
+              </AppPressable>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, TextInput } from "react-native";
+import { Platform, Text, TextInput } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import RootNavigator from "./src/navigation";
@@ -27,7 +27,7 @@ export default function App() {
     <SafeAreaProvider>
       <RootNavigator />
       <StatusBar style="light" />
-      <Analytics />
+      {Platform.OS === "web" ? <Analytics /> : null}
     </SafeAreaProvider>
   );
 }

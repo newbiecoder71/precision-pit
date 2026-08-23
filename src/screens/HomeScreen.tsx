@@ -61,10 +61,18 @@ const secondaryQuickActions = [
   },
 ];
 
+const kartingQuickActionOverrides: Partial<Record<string, { label: string; icon: any }>> = {
+  Shocks: {
+    label: "Chassis",
+    icon: require("../../assets/icons/chassis.png"),
+  },
+};
+
 export default function HomeScreen({ navigation }: any) {
   const scrollRef = useRef<ScrollView>(null);
   const [showMoreActions, setShowMoreActions] = useState(false);
   const teamName = useAppStore((state) => state.teamName);
+  const brandingPreferences = useAppStore((state) => state.brandingPreferences);
   const racingType = useAppStore((state) => state.racingType);
   const raceCarType = useAppStore((state) => state.raceCarType);
   const carClass = useAppStore((state) => state.carClass);
@@ -254,8 +262,50 @@ export default function HomeScreen({ navigation }: any) {
       return;
     }
 
+    if (raceCarType === "Karting") {
+      if (target === "Setups") {
+        navigation.getParent()?.push("SetupsOverview");
+        return;
+      }
+
+      if (target === "Tires") {
+        navigation.getParent()?.navigate("KartingSetup", { section: "Tires" });
+        return;
+      }
+
+      if (target === "Gears") {
+        navigation.getParent()?.navigate("KartingSetup", { section: "Gears" });
+        return;
+      }
+
+      if (target === "Shocks") {
+        navigation.getParent()?.navigate("KartingSetup", { section: "Kart Chassis" });
+        return;
+      }
+    }
+
+    if (target === "Setups") {
+      navigation.getParent()?.push("SetupsOverview");
+      return;
+    }
+
     navigation.navigate(target);
   };
+
+  const displayedSecondaryQuickActions = useMemo(() => {
+    if (raceCarType !== "Karting") {
+      return secondaryQuickActions;
+    }
+
+    return secondaryQuickActions.map((action) => ({
+      ...action,
+      ...(kartingQuickActionOverrides[action.target] ?? {}),
+    }));
+  }, [raceCarType]);
+
+  const showCarNumberBadge =
+    brandingPreferences.carNumberText.trim().length > 0 ||
+    brandingPreferences.carNumberImageUri.trim().length > 0;
 
   return (
     <LinearGradient colors={["#07111A", "#09233A", "#07111A"]} style={styles.background}>
@@ -267,7 +317,31 @@ export default function HomeScreen({ navigation }: any) {
           <View>
           <View style={styles.header}>
             <Text style={styles.eyebrow}>Race Day Dashboard</Text>
-            <Text style={styles.teamName}>{teamName || "Precision Pit"}</Text>
+            <View style={styles.teamNameRow}>
+              <Text style={styles.teamName}>{teamName || "Precision Pit"}</Text>
+              {showCarNumberBadge ? (
+                <View style={styles.carNumberBadge}>
+                  <LinearGradient
+                    colors={["rgba(168, 219, 255, 0.24)", "rgba(28, 65, 102, 0.95)", "rgba(9, 20, 33, 0.98)"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.carNumberBadgeInner}
+                  >
+                    {brandingPreferences.carNumberImageUri.trim() ? (
+                      <Image
+                        source={{ uri: brandingPreferences.carNumberImageUri }}
+                        style={styles.carNumberImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Text style={styles.carNumberText}>
+                        {brandingPreferences.carNumberText.trim()}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </View>
+              ) : null}
+            </View>
             <Text style={styles.headerCopy}>
               Open the next event quickly, keep the team aligned, and jump back into the latest
               race-night notes without digging through the app.
@@ -398,7 +472,7 @@ export default function HomeScreen({ navigation }: any) {
             </View>
             {showMoreActions ? (
               <View style={styles.quickActionsGridSecondary}>
-                {secondaryQuickActions.map((action) => (
+                {displayedSecondaryQuickActions.map((action) => (
                   <Pressable
                     key={action.label}
                     onPress={() => handleQuickActionPress(action.target)}
@@ -484,16 +558,55 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textTransform: "uppercase",
   },
+  teamNameRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing(0.75),
+    marginBottom: 6,
+  },
   teamName: {
     color: "#EAF7FF",
     fontSize: 26,
     fontWeight: "900",
     fontStyle: "italic",
     letterSpacing: 0.5,
-    marginBottom: 6,
     textShadowColor: "rgba(31,111,235,0.3)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
+  },
+  carNumberBadge: {
+    borderColor: "rgba(173, 224, 255, 0.32)",
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+  },
+  carNumberBadgeInner: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 62,
+    minWidth: 84,
+    paddingHorizontal: spacing(0.75),
+    paddingVertical: spacing(0.5),
+  },
+  carNumberImage: {
+    height: 50,
+    width: 72,
+  },
+  carNumberText: {
+    color: "#F7FCFF",
+    fontSize: 28,
+    fontStyle: "italic",
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   headerCopy: {
     color: "#9FC6E4",

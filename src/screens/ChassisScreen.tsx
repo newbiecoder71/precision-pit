@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, GestureResponderEvent, Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
+import AppPressable from "../components/AppPressable";
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
+import { isVisiblePreferenceSelected } from "../data/teamPreferences";
 import {
   chassisBuilderBaselines,
   chassisBuilderOptions,
@@ -193,6 +195,7 @@ function sanitizeDecimalInput(value: string) {
 
 export default function ChassisScreen() {
   const chassisSetup = useAppStore((state) => state.chassisSetup);
+  const setupVisibilityPreferences = useAppStore((state) => state.setupVisibilityPreferences);
   const raceCarType = useAppStore((state) => state.raceCarType);
   const carClass = useAppStore((state) => state.carClass);
   const saveChassisSetup = useAppStore((state) => state.saveChassisSetup);
@@ -262,6 +265,51 @@ export default function ChassisScreen() {
       [key]: value,
     }));
   };
+
+  const visibleRideHeightFields = rideHeightFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleWingSprintFields = wingSprintFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visiblePercentFields = percentFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleScaleWeightFields = scaleWeightFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleJackBoltFields = jackBoltFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleSpringChangeFields = springChangeFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleShockChangeFields = shockChangeFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleNoteFields = noteFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const crossweightPercentField = visiblePercentFields.find(
+    (field) => field.key === "crossweightWedge",
+  );
+  const leftSidePercentField = visiblePercentFields.find(
+    (field) => field.key === "leftSidePercentage",
+  );
+  const rearPercentField = visiblePercentFields.find((field) => field.key === "rearPercentage");
+  const secondaryPercentFields = [leftSidePercentField, rearPercentField].filter(
+    (field): field is NumericField => Boolean(field),
+  );
+  const showBallastChangeLbs = isVisiblePreferenceSelected(
+    setupVisibilityPreferences,
+    "chassis",
+    "ballastChangeLbs",
+  );
+  const showBallastLocationZone = isVisiblePreferenceSelected(
+    setupVisibilityPreferences,
+    "chassis",
+    "ballastLocationZone",
+  );
 
   const handleFractionMeasurementChange = (key: ChassisFieldKey, value: string) => {
     setDraftSetup((current) => ({
@@ -417,7 +465,7 @@ export default function ChassisScreen() {
             </Pressable>
 
             <View style={styles.grid}>
-              {rideHeightFields.map((field) => (
+              {visibleRideHeightFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
                   <Pressable onPress={Keyboard.dismiss}>
                     <Text style={styles.label}>{field.label}</Text>
@@ -460,7 +508,7 @@ export default function ChassisScreen() {
                   </Text>
                 </Pressable>
                 <View style={styles.grid} {...backgroundDismissProps}>
-                  {wingSprintFields.map((field) => (
+                  {visibleWingSprintFields.map((field) => (
                     <View key={field.key} style={styles.gridField}>
                       <Pressable onPress={Keyboard.dismiss}>
                         <Text style={styles.label}>{field.label}</Text>
@@ -504,7 +552,7 @@ export default function ChassisScreen() {
             </Pressable>
 
             <View style={styles.grid} {...backgroundDismissProps}>
-              {scaleWeightFields.map((field) => (
+              {visibleScaleWeightFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
                   <Pressable onPress={Keyboard.dismiss}>
                     <Text style={styles.label}>{field.label}</Text>
@@ -528,8 +576,33 @@ export default function ChassisScreen() {
               </Text>
             </Pressable>
 
+            <View style={styles.percentLeadField} {...backgroundDismissProps}>
+              {crossweightPercentField ? (
+              <View style={styles.fieldBlock}>
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.label}>{crossweightPercentField.label}</Text>
+                </Pressable>
+                <TextInput
+                  value={draftSetup[crossweightPercentField.key]}
+                  onChangeText={() => {}}
+                  placeholder={getBuilderPlaceholder(
+                    crossweightPercentField.key as keyof typeof builderBaseline,
+                    crossweightPercentField.placeholder,
+                  )}
+                  placeholderTextColor="#5E7B94"
+                  keyboardType="decimal-pad"
+                  editable={false}
+                  style={[styles.input, styles.inputDisabled]}
+                />
+                <Pressable onPress={Keyboard.dismiss}>
+                  <Text style={styles.reference}>{crossweightPercentField.reference}</Text>
+                </Pressable>
+              </View>
+              ) : null}
+            </View>
+
             <View style={styles.percentRow} {...backgroundDismissProps}>
-              {percentFields.slice(0, 2).map((field) => (
+              {secondaryPercentFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
                   <Pressable onPress={Keyboard.dismiss}>
                     <Text style={styles.label}>{field.label}</Text>
@@ -548,29 +621,6 @@ export default function ChassisScreen() {
                   </Pressable>
                 </View>
               ))}
-            </View>
-
-            <View style={styles.percentLeadField} {...backgroundDismissProps}>
-              <View style={styles.fieldBlock}>
-                <Pressable onPress={Keyboard.dismiss}>
-                  <Text style={styles.label}>{percentFields[2].label}</Text>
-                </Pressable>
-                <TextInput
-                  value={draftSetup[percentFields[2].key]}
-                  onChangeText={() => {}}
-                  placeholder={getBuilderPlaceholder(
-                    percentFields[2].key as keyof typeof builderBaseline,
-                    percentFields[2].placeholder,
-                  )}
-                  placeholderTextColor="#5E7B94"
-                  keyboardType="decimal-pad"
-                  editable={false}
-                  style={[styles.input, styles.inputDisabled]}
-                />
-                <Pressable onPress={Keyboard.dismiss}>
-                  <Text style={styles.reference}>{percentFields[2].reference}</Text>
-                </Pressable>
-              </View>
             </View>
           </>
         ) : null}
@@ -596,7 +646,7 @@ export default function ChassisScreen() {
             </Pressable>
 
             <View style={styles.grid} {...backgroundDismissProps}>
-              {jackBoltFields.map((field) => (
+              {visibleJackBoltFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
                   <Pressable onPress={Keyboard.dismiss}>
                     <Text style={styles.label}>{field.label}</Text>
@@ -617,7 +667,7 @@ export default function ChassisScreen() {
             </View>
 
             <View style={styles.grid} {...backgroundDismissProps}>
-              {springChangeFields.map((field) => (
+              {visibleSpringChangeFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
                   <Pressable onPress={Keyboard.dismiss}>
                     <Text style={styles.label}>{field.label}</Text>
@@ -638,7 +688,7 @@ export default function ChassisScreen() {
             </View>
 
             <View style={styles.grid} {...backgroundDismissProps}>
-              {shockChangeFields.map((field) => (
+              {visibleShockChangeFields.map((field) => (
                 <View key={field.key} style={styles.gridField}>
                   <Pressable onPress={Keyboard.dismiss}>
                     <Text style={styles.label}>{field.label}</Text>
@@ -659,6 +709,7 @@ export default function ChassisScreen() {
             </View>
 
             <View style={styles.grid} {...backgroundDismissProps}>
+              {showBallastChangeLbs ? (
               <View style={styles.gridField}>
                 <Pressable onPress={Keyboard.dismiss}>
                   <Text style={styles.label}>Ballast Change Lbs</Text>
@@ -675,6 +726,8 @@ export default function ChassisScreen() {
                   <Text style={styles.reference}>Enter how many pounds were moved or added relative to baseline.</Text>
                 </Pressable>
               </View>
+              ) : null}
+              {showBallastLocationZone ? (
               <View style={styles.gridField}>
                 <Pressable onPress={Keyboard.dismiss}>
                   <Text style={styles.label}>Ballast Location Zone</Text>
@@ -690,6 +743,7 @@ export default function ChassisScreen() {
                   <Text style={styles.reference}>Use simple zones like LF, LR, left, right, rear, or center rear.</Text>
                 </Pressable>
               </View>
+              ) : null}
             </View>
 
             <View style={styles.estimateCard} {...backgroundDismissProps}>
@@ -698,25 +752,27 @@ export default function ChassisScreen() {
               </Pressable>
               {estimatedEffect ? (
                 <>
-                  <View style={styles.percentRow} {...backgroundDismissProps}>
-                    <View style={styles.gridField}>
+                  <View style={styles.percentLeadField} {...backgroundDismissProps}>
+                    <View style={styles.fieldBlock}>
                       <Pressable onPress={Keyboard.dismiss}>
                         <Text style={styles.label}>Estimated Cross</Text>
                       </Pressable>
                       <Text style={[styles.input, styles.estimateValue]}>{estimatedEffect.estimatedCrossweightWedge}%</Text>
                     </View>
+                  </View>
+                  <View style={styles.percentRow} {...backgroundDismissProps}>
                     <View style={styles.gridField}>
                       <Pressable onPress={Keyboard.dismiss}>
                         <Text style={styles.label}>Estimated Left</Text>
                       </Pressable>
                       <Text style={[styles.input, styles.estimateValue]}>{estimatedEffect.estimatedLeftSidePercentage}%</Text>
                     </View>
-                  </View>
-                  <View style={styles.percentLeadField} {...backgroundDismissProps}>
-                    <Pressable onPress={Keyboard.dismiss}>
-                      <Text style={styles.label}>Estimated Rear</Text>
-                    </Pressable>
-                    <Text style={[styles.input, styles.estimateValue]}>{estimatedEffect.estimatedRearPercentage}%</Text>
+                    <View style={styles.gridField}>
+                      <Pressable onPress={Keyboard.dismiss}>
+                        <Text style={styles.label}>Estimated Rear</Text>
+                      </Pressable>
+                      <Text style={[styles.input, styles.estimateValue]}>{estimatedEffect.estimatedRearPercentage}%</Text>
+                    </View>
                   </View>
                   {estimatedEffect.handlingNotes.length ? (
                     <View style={styles.effectNotes}>
@@ -765,7 +821,7 @@ export default function ChassisScreen() {
               </Text>
             </Pressable>
 
-            {noteFields.map((field) => (
+            {visibleNoteFields.map((field) => (
               <View key={field.key} style={styles.fieldBlock} {...backgroundDismissProps}>
                 <Pressable onPress={Keyboard.dismiss}>
                   <Text style={styles.label}>{field.label}</Text>
@@ -787,9 +843,9 @@ export default function ChassisScreen() {
           </>
         ) : null}
 
-        <Pressable onPress={handleSave} style={styles.button}>
+        <AppPressable onPress={handleSave} style={styles.button}>
           <Text style={styles.buttonText}>Save Chassis Setup</Text>
-        </Pressable>
+        </AppPressable>
       </View>
       </KeyboardScreen>
   );

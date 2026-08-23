@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import TextInput from "../components/AppTextInput";
+import AppPressable from "../components/AppPressable";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppStore } from "../store/useAppStore";
@@ -84,9 +85,9 @@ export default function AcceptInviteScreen({ navigation }: any) {
             keyboardDismissMode="none"
             keyboardShouldPersistTaps="always"
           >
-            <Pressable onPress={handleCancel} style={styles.backButton}>
+            <AppPressable onPress={handleCancel} style={styles.backButton}>
               <Text style={styles.backButtonText}>{"< Back"}</Text>
-            </Pressable>
+            </AppPressable>
 
             <View style={styles.formWrap}>
               <Text style={styles.title}>
@@ -184,9 +185,9 @@ export default function AcceptInviteScreen({ navigation }: any) {
               number, and symbol.
             </Text>
 
-              <Pressable onPress={handleSubmit} style={styles.button}>
+              <AppPressable onPress={handleSubmit} style={styles.button}>
                 <Text style={styles.buttonText}>Join Team</Text>
-              </Pressable>
+              </AppPressable>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>

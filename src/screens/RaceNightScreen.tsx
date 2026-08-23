@@ -1,11 +1,13 @@
 import React, { startTransition, useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput as RNTextInput, View } from "react-native";
+import { Alert, Image, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput as RNTextInput, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import TextInput from "../components/AppTextInput";
 import AppPressable from "../components/AppPressable";
 import KeyboardScreen from "../components/KeyboardScreen";
+import { dirtOvalTracks } from "../data/dirtOvalTracks";
+import { isVisiblePreferenceSelected } from "../data/teamPreferences";
 import {
   ChassisSetup,
   GearSetup,
@@ -13,6 +15,7 @@ import {
   RaceNightStageData,
   RaceNightStageKey,
   SuspensionSetup,
+  TireInventoryItem,
   TireSetup,
   raceNightStageLabels,
   raceNightStageOrder,
@@ -101,6 +104,29 @@ const raceNightWheelOffsetFields: Array<{
   { key: "rrWheelOffset", label: "RR Wheel Offset", placeholder: "4", keyboardType: "numbers-and-punctuation" },
 ];
 
+const tireInventoryPositionFieldMap = {
+  LF: {
+    circumference: "lfCircumference",
+    pressure: "lfPressure",
+    wheelOffset: "lfWheelOffset",
+  },
+  RF: {
+    circumference: "rfCircumference",
+    pressure: "rfPressure",
+    wheelOffset: "rfWheelOffset",
+  },
+  LR: {
+    circumference: "lrCircumference",
+    pressure: "lrPressure",
+    wheelOffset: "lrWheelOffset",
+  },
+  RR: {
+    circumference: "rrCircumference",
+    pressure: "rrPressure",
+    wheelOffset: "rrWheelOffset",
+  },
+} as const;
+
 const raceNightWingSprintFields: Array<{
   key: ChassisFieldKey;
   label: string;
@@ -120,7 +146,7 @@ const raceNightScaleWeightFields: Array<{ key: ChassisFieldKey; label: string; p
 ];
 
 const raceNightCalculatedPercentFields: Array<{ key: ChassisFieldKey; label: string; placeholder: string }> = [
-  { key: "crossweightWedge", label: "Crossweight / Wedge %", placeholder: "52.5" },
+  { key: "crossweightWedge", label: "Crossweight / Wedge\u00A0%", placeholder: "52.5" },
   { key: "leftSidePercentage", label: "Left Side %", placeholder: "54.0" },
   { key: "rearPercentage", label: "Rear %", placeholder: "58.0" },
 ];
@@ -201,6 +227,7 @@ const raceNightTireTempCorners = [
 
 const circumferenceWholeNumberOptions = Array.from({ length: 13 }, (_, index) => `${84 + index}`);
 const circumferenceFractionOptions = ["0", "1/8", "1/4", "3/8", "1/2", "5/8", "3/4", "7/8"] as const;
+const quickChangeGearOptions = Array.from({ length: 25 }, (_, index) => `${18 + index}`);
 type RaceNightTireCircumferenceFieldKey =
   | "lfCircumference"
   | "rfCircumference"
@@ -342,12 +369,18 @@ export default function RaceNightScreen({ navigation, route }: any) {
   const recentLocalEditUntilRef = React.useRef(0);
   const insets = useSafeAreaInsets();
   const raceNightId = route.params?.raceNightId as string;
+  const editablePastRace = route.params?.editablePastRace === true;
   const isTeamOwner = useAppStore((state) => state.isTeamOwner);
   const userId = useAppStore((state) => state.userId);
   const userName = useAppStore((state) => state.userName);
   const userEmail = useAppStore((state) => state.userEmail);
+  const accountTransponderNumber = useAppStore((state) => state.transponderNumber);
   const teamMembers = useAppStore((state) => state.teamMembers);
+  const setupVisibilityPreferences = useAppStore((state) => state.setupVisibilityPreferences);
+  const checklistVisibilityPreferences = useAppStore((state) => state.checklistVisibilityPreferences);
   const raceNights = useAppStore((state) => state.raceNights);
+  const tireInventory = useAppStore((state) => state.tireInventory);
+  const gearInventory = useAppStore((state) => state.gearInventory);
   const saveRaceNight = useAppStore((state) => state.saveRaceNight);
   const refreshRaceNight = useAppStore((state) => state.refreshRaceNight);
   const updateRaceEventTitle = useAppStore((state) => state.updateRaceEventTitle);
@@ -377,6 +410,9 @@ export default function RaceNightScreen({ navigation, route }: any) {
   const [weatherAutofillMessage, setWeatherAutofillMessage] = useState("");
   const [activeCircumferenceField, setActiveCircumferenceField] =
     useState<RaceNightTireCircumferenceFieldKey | null>(null);
+  const [activeRaceNightQuickChangeField, setActiveRaceNightQuickChangeField] = useState<
+    "quickChangeTopTeeth" | "quickChangeBottomTeeth" | null
+  >(null);
   const [selectedWholeNumber, setSelectedWholeNumber] = useState("");
   const [selectedFraction, setSelectedFraction] =
     useState<(typeof circumferenceFractionOptions)[number]>("0");
@@ -397,6 +433,17 @@ export default function RaceNightScreen({ navigation, route }: any) {
   const [isTitleEditorVisible, setIsTitleEditorVisible] = useState(false);
   const [editedRaceTitle, setEditedRaceTitle] = useState("");
   const [isSavingRaceTitle, setIsSavingRaceTitle] = useState(false);
+  const [showSavedTireInventory, setShowSavedTireInventory] = useState(false);
+  const [showSavedGearInventory, setShowSavedGearInventory] = useState(false);
+
+  const visibleTireInventory = useMemo(
+    () =>
+      tireInventory.filter((item) =>
+        ["LF", "RF", "LR", "RR", "Spare"].includes(item.position.toUpperCase()),
+      ),
+    [tireInventory],
+  );
+  const visibleGearInventory = useMemo(() => gearInventory, [gearInventory]);
 
   const showRaceNightInstructions = () => {
     Alert.alert(
@@ -458,7 +505,31 @@ export default function RaceNightScreen({ navigation, route }: any) {
     setSelectedWholeNumber("");
     setSelectedFraction("0");
     setPendingSectionScrollTarget(null);
+    setShowSavedTireInventory(false);
   }, [raceNightId, raceNight?.id]);
+
+  useEffect(() => {
+    if (!draftRaceNight) {
+      return;
+    }
+
+    const nextTransponderNumber = accountTransponderNumber?.trim() ?? "";
+    const currentTransponderNumber = draftRaceNight.transponderNumber.trim();
+
+    if (currentTransponderNumber === nextTransponderNumber) {
+      return;
+    }
+
+    markLocalRaceNightEdit();
+    setDraftRaceNight((current) =>
+      current
+        ? {
+            ...current,
+            transponderNumber: nextTransponderNumber,
+          }
+        : current,
+    );
+  }, [accountTransponderNumber, draftRaceNight, markLocalRaceNightEdit]);
 
   useEffect(() => {
     if (!activeCircumferenceField || !draftRaceNight) {
@@ -510,10 +581,13 @@ export default function RaceNightScreen({ navigation, route }: any) {
   const isHotLapsStage = activeStage === "hotLaps";
   const weatherActionLabel = isHotLapsStage ? "Auto Fill Weather" : "Refresh Weather";
   const isInheritedWeatherZipLocked = !isHotLapsStage && Boolean(hotLapsWeatherZipCode.trim());
-  const isReadOnly = draftRaceNight.status === "completed";
+  const isReadOnly = draftRaceNight.status === "completed" && !editablePastRace;
   const isWeatherZipEditable = !isReadOnly && (isHotLapsStage || !isInheritedWeatherZipLocked);
   const isRaceDay = formatStoredDateValue(draftRaceNight.eventDate) === formatStoredDateValue(new Date().toISOString());
   const isPastRace = getDateSortValue(draftRaceNight.eventDate) < getDateSortValue(formatStoredDateValue(new Date().toISOString()));
+  const mappedTrackProfileUrl =
+    dirtOvalTracks.find((track) => track.name.trim().toLowerCase() === draftRaceNight.trackName.trim().toLowerCase())
+      ?.myRacePassUrl ?? "";
   const isStageLockedForPreRace = !isReadOnly && !isHotLapsStage && !isRaceDay && !isPastRace;
   const isStageInputDisabled = isReadOnly || isStageLockedForPreRace;
   const activeLiveTimer = liveTimers[activeStage];
@@ -533,6 +607,8 @@ export default function RaceNightScreen({ navigation, route }: any) {
   const fastestLap = currentStage.lapTimer.entries
     .filter((entry) => !entry.caution)
     .sort((a, b) => a.durationMs - b.durationMs)[0];
+  const hasLapTimerActivity =
+    currentStage.lapTimer.entries.length > 0 || activeLiveTimer.isRunning || activeLiveTimer.elapsedMs > 0;
   const frontStaggerValue = useMemo(
     () =>
       calculateStaggerValue(
@@ -559,30 +635,149 @@ export default function RaceNightScreen({ navigation, route }: any) {
     frontStaggerValue == null ? "-" : formatMeasurementValue(frontStaggerValue, "fraction");
   const rearStagger =
     rearStaggerValue == null ? "-" : formatMeasurementValue(rearStaggerValue, "fraction");
+  const visibleRaceNightChassisFields = raceNightChassisFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleRaceNightWingSprintFields = raceNightWingSprintFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleRaceNightScaleWeightFields = raceNightScaleWeightFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleRaceNightCalculatedPercentFields = raceNightCalculatedPercentFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const raceNightCrossweightPercentField = visibleRaceNightCalculatedPercentFields.find(
+    (field) => field.key === "crossweightWedge",
+  );
+  const raceNightLeftSidePercentField = visibleRaceNightCalculatedPercentFields.find(
+    (field) => field.key === "leftSidePercentage",
+  );
+  const raceNightRearPercentField = visibleRaceNightCalculatedPercentFields.find(
+    (field) => field.key === "rearPercentage",
+  );
+  const raceNightSecondaryPercentFields = [
+    raceNightLeftSidePercentField,
+    raceNightRearPercentField,
+  ].filter((field): field is (typeof raceNightCalculatedPercentFields)[number] => Boolean(field));
+  const visibleRaceNightJackBoltFields = raceNightJackBoltFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleRaceNightSpringChangeFields = raceNightSpringChangeFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleRaceNightShockChangeFields = raceNightShockChangeFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleRaceNightChassisNoteFields = raceNightChassisNoteFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "chassis", field.key),
+  );
+  const visibleRaceNightTireFields = raceNightTireFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", field.key),
+  );
+  const visibleRaceNightWheelOffsetFields = raceNightWheelOffsetFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", field.key),
+  );
+  const visibleRaceNightTireTempCorners = raceNightTireTempCorners
+    .map((corner) => ({
+      ...corner,
+      visibleFields: [
+        {
+          key: corner.innerKey,
+          label: "Inner",
+          placeholder: "90",
+        },
+        {
+          key: corner.middleKey,
+          label: "Middle",
+          placeholder: "92",
+        },
+        {
+          key: corner.outerKey,
+          label: "Outer",
+          placeholder: "94",
+        },
+      ].filter((field) =>
+        isVisiblePreferenceSelected(setupVisibilityPreferences, "tires", field.key),
+      ),
+    }))
+    .filter((corner) => corner.visibleFields.length > 0);
+  const visibleRaceNightFrontSuspensionFields = raceNightFrontSuspensionFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "frontSuspension", field.key),
+  );
+  const visibleRaceNightRearSuspensionFields = raceNightRearSuspensionFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "rearSuspension", field.key),
+  );
+  const visibleRaceNightGearFields = raceNightGearFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "gears", field.key),
+  );
+  const visibleChecklistSections = currentStage.checklistSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        isVisiblePreferenceSelected(checklistVisibilityPreferences, section.id, item.id),
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
+  const visibleRaceNightSetupTabs = raceNightSetupTabs.filter((tab) => {
+    switch (tab.id) {
+      case "chassis":
+        return (
+          visibleRaceNightChassisFields.length > 0 ||
+          visibleRaceNightWingSprintFields.length > 0 ||
+          visibleRaceNightScaleWeightFields.length > 0 ||
+          visibleRaceNightCalculatedPercentFields.length > 0 ||
+          visibleRaceNightJackBoltFields.length > 0 ||
+          visibleRaceNightSpringChangeFields.length > 0 ||
+          visibleRaceNightShockChangeFields.length > 0 ||
+          visibleRaceNightChassisNoteFields.length > 0
+        );
+      case "tires":
+        return (
+          visibleRaceNightTireFields.length > 0 ||
+          visibleRaceNightWheelOffsetFields.length > 0 ||
+          visibleRaceNightTireTempCorners.length > 0
+        );
+      case "frontSuspension":
+        return visibleRaceNightFrontSuspensionFields.length > 0;
+      case "rearSuspension":
+        return visibleRaceNightRearSuspensionFields.length > 0;
+      case "gears":
+        return visibleRaceNightGearFields.length > 0;
+      default:
+        return true;
+    }
+  });
+
+  useEffect(() => {
+    if (!visibleRaceNightSetupTabs.some((tab) => tab.id === activeSetupTab)) {
+      setActiveSetupTab(visibleRaceNightSetupTabs[0]?.id ?? "chassis");
+    }
+  }, [activeSetupTab, visibleRaceNightSetupTabs]);
   const tireTempAverages = useMemo(
     () => ({
-      lf: formatAverageTireTemp([
-        currentStage.setupAdjustments.tires.lfTempInner,
-        currentStage.setupAdjustments.tires.lfTempMiddle,
-        currentStage.setupAdjustments.tires.lfTempOuter,
-      ]),
-      rf: formatAverageTireTemp([
-        currentStage.setupAdjustments.tires.rfTempInner,
-        currentStage.setupAdjustments.tires.rfTempMiddle,
-        currentStage.setupAdjustments.tires.rfTempOuter,
-      ]),
-      lr: formatAverageTireTemp([
-        currentStage.setupAdjustments.tires.lrTempInner,
-        currentStage.setupAdjustments.tires.lrTempMiddle,
-        currentStage.setupAdjustments.tires.lrTempOuter,
-      ]),
-      rr: formatAverageTireTemp([
-        currentStage.setupAdjustments.tires.rrTempInner,
-        currentStage.setupAdjustments.tires.rrTempMiddle,
-        currentStage.setupAdjustments.tires.rrTempOuter,
-      ]),
+      lf: formatAverageTireTemp(
+        visibleRaceNightTireTempCorners
+          .find((corner) => corner.id === "lf")
+          ?.visibleFields.map((field) => currentStage.setupAdjustments.tires[field.key]) ?? [],
+      ),
+      rf: formatAverageTireTemp(
+        visibleRaceNightTireTempCorners
+          .find((corner) => corner.id === "rf")
+          ?.visibleFields.map((field) => currentStage.setupAdjustments.tires[field.key]) ?? [],
+      ),
+      lr: formatAverageTireTemp(
+        visibleRaceNightTireTempCorners
+          .find((corner) => corner.id === "lr")
+          ?.visibleFields.map((field) => currentStage.setupAdjustments.tires[field.key]) ?? [],
+      ),
+      rr: formatAverageTireTemp(
+        visibleRaceNightTireTempCorners
+          .find((corner) => corner.id === "rr")
+          ?.visibleFields.map((field) => currentStage.setupAdjustments.tires[field.key]) ?? [],
+      ),
     }),
-    [currentStage.setupAdjustments.tires],
+    [currentStage.setupAdjustments.tires, visibleRaceNightTireTempCorners],
   );
   const gearRatioValue = useMemo(
     () =>
@@ -995,6 +1190,23 @@ export default function RaceNightScreen({ navigation, route }: any) {
     });
   };
 
+  const handleRaceNightRootFieldChange = useCallback(
+    (field: "transponderNumber" | "myRacePassEventUrl", value: string) => {
+      markLocalRaceNightEdit();
+      setDraftRaceNight((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [field]: value,
+        };
+      });
+    },
+    [],
+  );
+
   const handleNestedSetupChange = <
     TKey extends "chassis" | "tires" | "suspension",
     TField extends keyof RaceNightStageData["setupAdjustments"][TKey],
@@ -1142,6 +1354,116 @@ export default function RaceNightScreen({ navigation, route }: any) {
     setActiveCircumferenceField(field);
   };
 
+  const applyTireInventoryToPosition = (
+    tireItem: TireInventoryItem,
+    targetPosition: keyof typeof tireInventoryPositionFieldMap,
+  ) => {
+    if (!draftRaceNight) {
+      return;
+    }
+
+    markLocalRaceNightEdit();
+
+    const fieldMap = tireInventoryPositionFieldMap[targetPosition];
+    const nextDraftRaceNight = {
+      ...draftRaceNight,
+      stageSessions: {
+        ...draftRaceNight.stageSessions,
+        [activeStage]: {
+          ...draftRaceNight.stageSessions[activeStage],
+          started: true,
+          setupAdjustments: {
+            ...draftRaceNight.stageSessions[activeStage].setupAdjustments,
+            tires: {
+              ...draftRaceNight.stageSessions[activeStage].setupAdjustments.tires,
+              [fieldMap.circumference]: tireItem.circumference,
+              [fieldMap.pressure]: tireItem.pressure,
+              [fieldMap.wheelOffset]: normalizeFractionMeasurementInput(tireItem.wheelOffset),
+            },
+          },
+        },
+      },
+    };
+
+    setDraftRaceNight(nextDraftRaceNight);
+    void saveRaceNight(raceNightId, nextDraftRaceNight).catch((error) => {
+      console.warn("Unable to sync tire inventory selection.", error);
+    });
+  };
+
+  const handleApplyTireInventoryItem = (tireItem: TireInventoryItem) => {
+    const normalizedPosition = tireItem.position.trim().toUpperCase();
+
+    if (normalizedPosition in tireInventoryPositionFieldMap) {
+      applyTireInventoryToPosition(
+        tireItem,
+        normalizedPosition as keyof typeof tireInventoryPositionFieldMap,
+      );
+      return;
+    }
+
+    Alert.alert("Apply Spare Tire", "Which corner should this tire fill?", [
+      {
+        text: "LF",
+        onPress: () => applyTireInventoryToPosition(tireItem, "LF"),
+      },
+      {
+        text: "RF",
+        onPress: () => applyTireInventoryToPosition(tireItem, "RF"),
+      },
+      {
+        text: "LR",
+        onPress: () => applyTireInventoryToPosition(tireItem, "LR"),
+      },
+      {
+        text: "RR",
+        onPress: () => applyTireInventoryToPosition(tireItem, "RR"),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const handleApplyGearInventoryItem = (gearItem: {
+    ringTeeth: string;
+    pinionTeeth: string;
+    quickChangeTopTeeth: string;
+    quickChangeBottomTeeth: string;
+    notes: string;
+  }) => {
+    if (!draftRaceNight) {
+      return;
+    }
+
+    markLocalRaceNightEdit();
+
+    const nextDraftRaceNight = {
+      ...draftRaceNight,
+      stageSessions: {
+        ...draftRaceNight.stageSessions,
+        [activeStage]: {
+          ...draftRaceNight.stageSessions[activeStage],
+          started: true,
+          setupAdjustments: {
+            ...draftRaceNight.stageSessions[activeStage].setupAdjustments,
+            gears: {
+              ...draftRaceNight.stageSessions[activeStage].setupAdjustments.gears,
+              ringTeeth: gearItem.ringTeeth,
+              pinionTeeth: gearItem.pinionTeeth,
+              quickChangeTopTeeth: gearItem.quickChangeTopTeeth,
+              quickChangeBottomTeeth: gearItem.quickChangeBottomTeeth,
+              notes: gearItem.notes,
+            },
+          },
+        },
+      },
+    };
+
+    setDraftRaceNight(nextDraftRaceNight);
+    void saveRaceNight(raceNightId, nextDraftRaceNight).catch((error) => {
+      console.warn("Unable to sync gear inventory selection.", error);
+    });
+  };
+
   const handleSelectWholeNumber = (wholeNumber: string) => {
     setSelectedWholeNumber(wholeNumber);
 
@@ -1163,6 +1485,24 @@ export default function RaceNightScreen({ navigation, route }: any) {
     handleNestedSetupChange("tires", activeCircumferenceField, nextValue);
     setSelectedFraction(fraction);
     setActiveCircumferenceField(null);
+  };
+
+  const handleSelectRaceNightQuickChangeOption = (option: string) => {
+    if (!activeRaceNightQuickChangeField) {
+      return;
+    }
+
+    handleGearSetupChange(activeRaceNightQuickChangeField, option);
+    setActiveRaceNightQuickChangeField(null);
+  };
+
+  const handleClearRaceNightQuickChangeOption = () => {
+    if (!activeRaceNightQuickChangeField) {
+      return;
+    }
+
+    handleGearSetupChange(activeRaceNightQuickChangeField, "");
+    setActiveRaceNightQuickChangeField(null);
   };
 
   const handleChecklistToggle = (sectionId: string, itemId: string) => {
@@ -1262,12 +1602,13 @@ export default function RaceNightScreen({ navigation, route }: any) {
   const updateStageLapEntries = (
     updater: (entries: RaceNightStageData["lapTimer"]["entries"]) => RaceNightStageData["lapTimer"]["entries"],
   ) => {
+    markLocalRaceNightEdit();
     setDraftRaceNight((current) => {
       if (!current) {
         return current;
       }
 
-      return {
+      const nextDraftRaceNight = {
         ...current,
         stageSessions: {
           ...current.stageSessions,
@@ -1280,6 +1621,12 @@ export default function RaceNightScreen({ navigation, route }: any) {
           },
         },
       };
+
+      void saveRaceNight(raceNightId, nextDraftRaceNight).catch((error) => {
+        console.warn("Unable to sync lap timer entry.", error);
+      });
+
+      return nextDraftRaceNight;
     });
   };
 
@@ -1392,6 +1739,69 @@ export default function RaceNightScreen({ navigation, route }: any) {
 
     startTransition(() => {
       setActiveSection("results");
+    });
+  };
+
+  const confirmResetLapTimer = () => {
+    if (!hasLapTimerActivity) {
+      return;
+    }
+
+    Alert.alert(
+      "Reset lap timer?",
+      "Are you sure you want to clear the current stopwatch and recorded lap times for this stage?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            handleResetLapTimer();
+          },
+        },
+      ],
+    );
+  };
+
+  const handleResetLapTimer = () => {
+    if (!hasLapTimerActivity) {
+      return;
+    }
+
+    markLocalRaceNightEdit();
+    setLiveTimers((current) => ({
+      ...current,
+      [activeStage]: {
+        isRunning: false,
+        elapsedMs: 0,
+        lapStartedAt: undefined,
+        isCaution: false,
+      },
+    }));
+
+    setDraftRaceNight((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextDraftRaceNight = {
+        ...current,
+        stageSessions: {
+          ...current.stageSessions,
+          [activeStage]: {
+            ...current.stageSessions[activeStage],
+            lapTimer: {
+              entries: [],
+            },
+          },
+        },
+      };
+
+      void saveRaceNight(raceNightId, nextDraftRaceNight).catch((error) => {
+        console.warn("Unable to reset lap timer.", error);
+      });
+
+      return nextDraftRaceNight;
     });
   };
 
@@ -1643,6 +2053,23 @@ export default function RaceNightScreen({ navigation, route }: any) {
           <Text style={styles.subhead}>
             {draftRaceNight.trackName} | {draftRaceNight.eventDate}
           </Text>
+          {
+            /*
+            Future MyRacePass live timing link:
+            <Pressable
+              onPress={handleOpenTrackLiveTiming}
+              style={styles.trackLiveTimingLink}
+            >
+              <Text style={styles.trackLiveTimingText}>
+                {draftRaceNight.trackName}
+              </Text>
+            </Pressable>
+
+            Planned destination order:
+            1. draftRaceNight.myRacePassEventUrl
+            2. mappedTrackProfileUrl
+            */
+          }
         </View>
         <View
           onLayout={(event) => {
@@ -1769,6 +2196,13 @@ export default function RaceNightScreen({ navigation, route }: any) {
             {draftRaceNight.status === "rainout"
               ? `This race night was marked as a rainout during ${raceNightStageLabels[draftRaceNight.rainoutStage ?? activeStage]}. You can still update it or resume racing if the track starts back up.`
               : "All data is Read-Only on completed race nights and can't be edited."}
+          </Text>
+        </View>
+      ) : null}
+      {!isReadOnly && editablePastRace && draftRaceNight.status === "completed" ? (
+        <View style={styles.stageLockBanner}>
+          <Text style={styles.stageLockBannerText}>
+            Owner edit mode is on for this completed race night. Any changes you save will update the completed race record.
           </Text>
         </View>
       ) : null}
@@ -2036,7 +2470,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
             <Text style={styles.sectionTitle}>Checklist</Text>
           </Pressable>
           <View pointerEvents={isStageInputDisabled ? "none" : "auto"}>
-            {currentStage.checklistSections.map((section) => (
+            {visibleChecklistSections.map((section) => (
               <View key={`${activeStage}-${section.id}`} style={styles.checklistSection}>
                 <Text style={styles.checklistTitle}>{section.title}</Text>
                 {section.items.map((item) => (
@@ -2045,7 +2479,15 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     onPress={() => handleChecklistToggle(section.id, item.id)}
                     style={styles.checklistRow}
                   >
-                    <View style={[styles.checkbox, item.checked ? styles.checkboxChecked : undefined]} />
+                    <View style={[styles.checkbox, item.checked ? styles.checkboxChecked : undefined]}>
+                      {item.checked ? (
+                        <Image
+                          source={require("../../assets/icons/checkmark.png")}
+                          style={styles.checkboxMark}
+                          resizeMode="contain"
+                        />
+                      ) : null}
+                    </View>
                     <Text style={styles.checklistLabel}>
                       {item.label}
                       {item.checked && item.checkedByName ? (
@@ -2071,7 +2513,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
             <Text style={styles.sectionTitle}>Setups</Text>
           </Pressable>
           <View style={styles.setupTabsRow}>
-            {raceNightSetupTabs.map((tab) => (
+            {visibleRaceNightSetupTabs.map((tab) => (
               <Pressable
                 key={tab.id}
                 onPress={() => handleSetupTabPress(tab.id)}
@@ -2101,7 +2543,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
             {activeSetupTab === "chassis" ? (
               <>
                 <View style={styles.grid}>
-                  {raceNightChassisFields.map((field) => (
+                  {visibleRaceNightChassisFields.map((field) => (
                     <Field
                       key={`${activeStage}-${field.key}`}
                       label={field.label}
@@ -2116,7 +2558,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                 </View>
                 {isWingSprintCar ? (
                   <View style={styles.grid}>
-                    {raceNightWingSprintFields.map((field) => (
+                    {visibleRaceNightWingSprintFields.map((field) => (
                       <Field
                         key={`${activeStage}-${field.key}`}
                         label={field.label}
@@ -2128,7 +2570,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                   </View>
                 ) : null}
                 <View style={styles.grid}>
-                  {raceNightScaleWeightFields.map((field) => (
+                  {visibleRaceNightScaleWeightFields.map((field) => (
                     <Field
                       key={`${activeStage}-${field.key}`}
                       label={field.label}
@@ -2145,8 +2587,24 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     Enter updated corner scale weights and the percentage fields below will auto-fill.
                   </Text>
                 </Pressable>
+                <View style={styles.centeredFieldWrap}>
+                  {raceNightCrossweightPercentField ? (
+                    <Field
+                      label={raceNightCrossweightPercentField.label}
+                      value={
+                        currentStage.setupAdjustments.chassis[
+                          raceNightCrossweightPercentField.key
+                        ]
+                      }
+                      onChangeText={() => {}}
+                      placeholder={raceNightCrossweightPercentField.placeholder}
+                      keyboardType="decimal-pad"
+                      editable={false}
+                    />
+                  ) : null}
+                </View>
                 <View style={styles.grid}>
-                  {raceNightCalculatedPercentFields.slice(0, 2).map((field) => (
+                  {raceNightSecondaryPercentFields.map((field) => (
                     <Field
                       key={`${activeStage}-${field.key}`}
                       label={field.label}
@@ -2159,19 +2617,9 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     />
                   ))}
                 </View>
-                <View style={styles.centeredFieldWrap}>
-                  <Field
-                    label={raceNightCalculatedPercentFields[2].label}
-                    value={currentStage.setupAdjustments.chassis[raceNightCalculatedPercentFields[2].key]}
-                    onChangeText={() => {}}
-                    placeholder={raceNightCalculatedPercentFields[2].placeholder}
-                    keyboardType="decimal-pad"
-                    editable={false}
-                  />
-                </View>
                 <Text style={styles.adjustmentSubTitle}>Jack Bolt</Text>
                 <View style={styles.grid}>
-                  {raceNightJackBoltFields.map((field) => (
+                  {visibleRaceNightJackBoltFields.map((field) => (
                     <Field
                       key={`${activeStage}-${field.key}`}
                       label={field.label}
@@ -2185,7 +2633,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                 </View>
                 <Text style={styles.adjustmentSubTitle}>Springs</Text>
                 <View style={styles.grid}>
-                  {raceNightSpringChangeFields.map((field) => (
+                  {visibleRaceNightSpringChangeFields.map((field) => (
                     <Field
                       key={`${activeStage}-${field.key}`}
                       label={field.label}
@@ -2199,7 +2647,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                 </View>
                 <Text style={styles.adjustmentSubTitle}>Shocks</Text>
                 <View style={styles.grid}>
-                  {raceNightShockChangeFields.map((field) => (
+                  {visibleRaceNightShockChangeFields.map((field) => (
                     <Field
                       key={`${activeStage}-${field.key}`}
                       label={field.label}
@@ -2233,15 +2681,16 @@ export default function RaceNightScreen({ navigation, route }: any) {
                   <Text style={styles.estimateTitle}>Estimated Scale Effect</Text>
                   {estimatedScaleEffect ? (
                     <>
-                      <View style={styles.grid}>
+                      <View style={styles.centeredFieldWrap}>
                         <Field
                           label="Estimated Cross"
                           value={`${estimatedScaleEffect.estimatedCrossweightWedge}%`}
                           onChangeText={() => {}}
                           placeholder="-"
                           editable={false}
-                          halfWidth
                         />
+                      </View>
+                      <View style={styles.grid}>
                         <Field
                           label="Estimated Left"
                           value={`${estimatedScaleEffect.estimatedLeftSidePercentage}%`}
@@ -2250,14 +2699,13 @@ export default function RaceNightScreen({ navigation, route }: any) {
                           editable={false}
                           halfWidth
                         />
-                      </View>
-                      <View style={styles.centeredFieldWrap}>
                         <Field
                           label="Estimated Rear"
                           value={`${estimatedScaleEffect.estimatedRearPercentage}%`}
                           onChangeText={() => {}}
                           placeholder="-"
                           editable={false}
+                          halfWidth
                         />
                       </View>
                       {estimatedScaleEffect.handlingNotes.length ? (
@@ -2280,7 +2728,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     </Text>
                   )}
                 </Pressable>
-                {raceNightChassisNoteFields.map((field) => (
+                {visibleRaceNightChassisNoteFields.map((field) => (
                   <Field
                     key={`${activeStage}-${field.key}`}
                     label={field.label}
@@ -2295,8 +2743,45 @@ export default function RaceNightScreen({ navigation, route }: any) {
 
             {activeSetupTab === "tires" ? (
               <>
+                {visibleTireInventory.length ? (
+                  <>
+                    <AppPressable
+                      onPress={() => setShowSavedTireInventory((current) => !current)}
+                      style={styles.savedInventoryToggleButton}
+                    >
+                      <Text style={styles.savedInventoryToggleButtonText}>
+                        {showSavedTireInventory ? "Hide Saved Tire Inventory" : "Saved Tire Inventory"}
+                      </Text>
+                    </AppPressable>
+                    {showSavedTireInventory ? (
+                      <>
+                        <Pressable onPress={Keyboard.dismiss}>
+                          <Text style={styles.readOnlyHelper}>
+                            Tap a saved tire to auto-fill circumference, pressure, and wheel offset for that corner.
+                          </Text>
+                        </Pressable>
+                        <View style={styles.inventoryChipGrid}>
+                          {visibleTireInventory.map((item) => (
+                            <Pressable
+                              key={`${activeStage}-inventory-${item.id}`}
+                              onPress={() => handleApplyTireInventoryItem(item)}
+                              style={styles.inventoryApplyChip}
+                            >
+                              <Text style={styles.inventoryApplyChipTitle}>
+                                {item.position.toUpperCase()} | {item.label}
+                              </Text>
+                              <Text style={styles.inventoryApplyChipMeta}>
+                                {item.circumference} circ | {item.pressure} psi | {normalizeFractionMeasurementInput(item.wheelOffset)} offset
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
                 <View style={styles.grid}>
-                  {raceNightTireFields
+                  {visibleRaceNightTireFields
                     .filter((field) => field.key.includes("Circumference"))
                     .map((field) => (
                       <View
@@ -2344,7 +2829,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                   </View>
                 </View>
                 <View style={styles.grid}>
-                  {raceNightTireFields
+                  {visibleRaceNightTireFields
                     .filter((field) => field.key.includes("Pressure"))
                     .map((field) => (
                       <Field
@@ -2359,7 +2844,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
                   ))}
                 </View>
                 <View style={styles.grid}>
-                  {raceNightWheelOffsetFields.map((field) => (
+                  {visibleRaceNightWheelOffsetFields.map((field) => (
                     <Field
                       key={`${activeStage}-${field.key}`}
                       label={field.label}
@@ -2380,55 +2865,32 @@ export default function RaceNightScreen({ navigation, route }: any) {
                     />
                   ))}
                 </View>
-                {!isHotLapsStage ? (
+                {!isHotLapsStage && visibleRaceNightTireTempCorners.length ? (
                   <>
                     <Text style={styles.setupSubSectionTitle}>Tire Temps</Text>
                     <View style={styles.grid}>
-                      {raceNightTireTempCorners.map((corner) => (
+                      {visibleRaceNightTireTempCorners.map((corner) => (
                         <View
                           key={`${activeStage}-${corner.id}`}
                           style={[styles.fieldBlock, styles.fieldBlockHalf, styles.tempCornerCard]}
                         >
                           <Text style={styles.tempCornerTitle}>{corner.label}</Text>
-                          <Field
-                            label="Inner"
-                            value={currentStage.setupAdjustments.tires[corner.innerKey]}
-                            onChangeText={(value) =>
-                              handleNestedSetupChange(
-                                "tires",
-                                corner.innerKey,
-                                value.replace(/[^0-9.]/g, ""),
-                              )
-                            }
-                            placeholder="90"
-                            keyboardType="decimal-pad"
-                          />
-                          <Field
-                            label="Middle"
-                            value={currentStage.setupAdjustments.tires[corner.middleKey]}
-                            onChangeText={(value) =>
-                              handleNestedSetupChange(
-                                "tires",
-                                corner.middleKey,
-                                value.replace(/[^0-9.]/g, ""),
-                              )
-                            }
-                            placeholder="92"
-                            keyboardType="decimal-pad"
-                          />
-                          <Field
-                            label="Outer"
-                            value={currentStage.setupAdjustments.tires[corner.outerKey]}
-                            onChangeText={(value) =>
-                              handleNestedSetupChange(
-                                "tires",
-                                corner.outerKey,
-                                value.replace(/[^0-9.]/g, ""),
-                              )
-                            }
-                            placeholder="94"
-                            keyboardType="decimal-pad"
-                          />
+                          {corner.visibleFields.map((field) => (
+                            <Field
+                              key={`${activeStage}-${corner.id}-${field.key}`}
+                              label={field.label}
+                              value={currentStage.setupAdjustments.tires[field.key]}
+                              onChangeText={(value) =>
+                                handleNestedSetupChange(
+                                  "tires",
+                                  field.key,
+                                  value.replace(/[^0-9.]/g, ""),
+                                )
+                              }
+                              placeholder={field.placeholder}
+                              keyboardType="decimal-pad"
+                            />
+                          ))}
                           <View style={styles.tempAverageRow}>
                             <Text style={styles.tempAverageLabel}>Avg Temp</Text>
                             <Text style={styles.tempAverageValue}>
@@ -2445,7 +2907,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
 
             {activeSetupTab === "frontSuspension" ? (
               <>
-                {raceNightFrontSuspensionFields.map((field) => (
+                {visibleRaceNightFrontSuspensionFields.map((field) => (
                   <Field
                     key={`${activeStage}-${field.key}`}
                     label={field.label}
@@ -2460,7 +2922,7 @@ export default function RaceNightScreen({ navigation, route }: any) {
 
             {activeSetupTab === "rearSuspension" ? (
               <>
-                {raceNightRearSuspensionFields.map((field) => (
+                {visibleRaceNightRearSuspensionFields.map((field) => (
                   <Field
                     key={`${activeStage}-${field.key}`}
                     label={field.label}
@@ -2475,22 +2937,83 @@ export default function RaceNightScreen({ navigation, route }: any) {
 
             {activeSetupTab === "gears" ? (
               <>
+                {visibleGearInventory.length ? (
+                  <>
+                    <AppPressable
+                      onPress={() => setShowSavedGearInventory((current) => !current)}
+                      style={styles.savedInventoryToggleButton}
+                    >
+                      <Text style={styles.savedInventoryToggleButtonText}>
+                        {showSavedGearInventory ? "Hide Saved Gear Inventory" : "Choose From Inventory"}
+                      </Text>
+                    </AppPressable>
+                    {showSavedGearInventory ? (
+                      <>
+                        <Pressable onPress={Keyboard.dismiss}>
+                          <Text style={styles.readOnlyHelper}>
+                            Tap a saved gear set to auto-fill ring teeth, pinion teeth, and both quick-change gears.
+                          </Text>
+                        </Pressable>
+                        <View style={styles.inventoryChipGrid}>
+                          {visibleGearInventory.map((item) => (
+                            <Pressable
+                              key={`${activeStage}-gear-inventory-${item.id}`}
+                              onPress={() => handleApplyGearInventoryItem(item)}
+                              style={styles.inventoryApplyChip}
+                            >
+                              <Text style={styles.inventoryApplyChipTitle}>{item.label}</Text>
+                              <Text style={styles.inventoryApplyChipMeta}>
+                                Ring {item.ringTeeth} | Pinion {item.pinionTeeth} | Top {item.quickChangeTopTeeth} | Bottom {item.quickChangeBottomTeeth}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
                 <View style={styles.grid}>
-                  {raceNightGearFields
+                  {visibleRaceNightGearFields
                     .filter((field) => field.halfWidth)
-                    .map((field) => (
-                      <Field
-                        key={`${activeStage}-${field.key}`}
-                        label={field.label}
-                        value={currentStage.setupAdjustments.gears[field.key]}
-                        onChangeText={(value) =>
-                          handleGearSetupChange(field.key, value.replace(/[^0-9.]/g, ""))
-                        }
-                        placeholder={field.placeholder}
-                        keyboardType="number-pad"
-                        halfWidth
-                      />
-                    ))}
+                    .map((field) =>
+                      field.key === "quickChangeTopTeeth" || field.key === "quickChangeBottomTeeth" ? (
+                        <View
+                          key={`${activeStage}-${field.key}`}
+                          style={[styles.fieldBlock, styles.fieldBlockHalf]}
+                        >
+                          <Text style={styles.label}>{field.label}</Text>
+                          <Pressable
+                            onPress={() => {
+                              Keyboard.dismiss();
+                              setActiveRaceNightQuickChangeField(field.key);
+                            }}
+                            style={[styles.input, styles.circumferenceButton]}
+                          >
+                            <Text
+                              style={
+                                currentStage.setupAdjustments.gears[field.key]
+                                  ? styles.inputValue
+                                  : styles.inputPlaceholder
+                              }
+                            >
+                              {currentStage.setupAdjustments.gears[field.key] || "Select"}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Field
+                          key={`${activeStage}-${field.key}`}
+                          label={field.label}
+                          value={currentStage.setupAdjustments.gears[field.key]}
+                          onChangeText={(value) =>
+                            handleGearSetupChange(field.key, value.replace(/[^0-9.]/g, ""))
+                          }
+                          placeholder={field.placeholder}
+                          keyboardType="number-pad"
+                          halfWidth
+                        />
+                      ),
+                    )}
                 </View>
                 <View style={styles.staggerCard}>
                   <Text style={styles.gearRatioLabel}>Final Drive Ratio</Text>
@@ -2523,6 +3046,49 @@ export default function RaceNightScreen({ navigation, route }: any) {
             <Text style={styles.sectionTitle}>Stopwatch & Lap Times</Text>
           </Pressable>
           <View pointerEvents={isStageInputDisabled ? "none" : "auto"}>
+            <View style={styles.fieldBlock}>
+              <Pressable onPress={Keyboard.dismiss}>
+                <Text style={styles.label}>Transponder Number</Text>
+              </Pressable>
+              <TextInput
+                editable={false}
+                value={accountTransponderNumber?.trim() || draftRaceNight.transponderNumber}
+                placeholder="Set in Team Account"
+                placeholderTextColor="#6E8CA6"
+                style={[styles.input, styles.readOnlyInput]}
+              />
+            </View>
+            <Pressable onPress={Keyboard.dismiss}>
+              <Text style={styles.readOnlyHelper}>
+                This number comes from Team Account details. Only the team owner or an approved crew
+                chief can change it there.
+              </Text>
+            </Pressable>
+            {mappedTrackProfileUrl ? (
+              <Pressable onPress={Keyboard.dismiss}>
+                <Text style={styles.readOnlyHelper}>
+                  This track already has a mapped MyRacePass profile ready for the future full-field timing
+                  link under the race title.
+                </Text>
+              </Pressable>
+            ) : null}
+            {
+              /*
+              Future live timing controls:
+              <Pressable
+                onPress={handleConnectTrackTiming}
+                style={[styles.secondaryActionButton, styles.futureIntegrationButton]}
+              >
+                <Text style={styles.secondaryActionButtonText}>Connect To Track Timing</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleRefreshTrackTiming}
+                style={[styles.secondaryActionButton, styles.futureIntegrationButton]}
+              >
+                <Text style={styles.secondaryActionButtonText}>Refresh Team Laps</Text>
+              </Pressable>
+              */
+            }
             <View style={styles.stopwatchTopRow}>
               <View style={styles.stopwatchStatCard}>
                 <Text style={styles.stopwatchStatLabel}>{getStopwatchStageLabel(activeStage)}</Text>
@@ -2560,15 +3126,23 @@ export default function RaceNightScreen({ navigation, route }: any) {
             </View>
 
             <View style={styles.stopwatchActions}>
-              <Pressable onPress={handleStartTimer} style={[styles.stopwatchButton, styles.startButton]}>
+              <Pressable
+                onPress={handleStartTimer}
+                style={({ pressed }) => [
+                  styles.stopwatchButton,
+                  styles.startButton,
+                  pressed ? styles.stopwatchButtonPressed : undefined,
+                ]}
+              >
                 <Text style={styles.stopwatchButtonText}>Start</Text>
               </Pressable>
               <Pressable
                 onPress={handleNewLap}
-                style={[
+                style={({ pressed }) => [
                   styles.stopwatchButton,
                   styles.lapButton,
                   !activeLiveTimer.isRunning ? styles.stopwatchButtonDisabled : undefined,
+                  pressed && activeLiveTimer.isRunning ? styles.stopwatchButtonPressed : undefined,
                 ]}
                 disabled={!activeLiveTimer.isRunning}
               >
@@ -2576,10 +3150,13 @@ export default function RaceNightScreen({ navigation, route }: any) {
               </Pressable>
               <Pressable
                 onPress={handleCaution}
-                style={[
+                style={({ pressed }) => [
                   styles.stopwatchButton,
                   styles.cautionButton,
                   isHotLapsStage || !activeLiveTimer.isRunning ? styles.stopwatchButtonDisabled : undefined,
+                  pressed && !isHotLapsStage && activeLiveTimer.isRunning
+                    ? styles.stopwatchButtonPressed
+                    : undefined,
                 ]}
                 disabled={isHotLapsStage || !activeLiveTimer.isRunning}
               >
@@ -2587,10 +3164,11 @@ export default function RaceNightScreen({ navigation, route }: any) {
               </Pressable>
               <Pressable
                 onPress={handleStopTimer}
-                style={[
+                style={({ pressed }) => [
                   styles.stopwatchButton,
                   styles.stopButton,
                   !activeLiveTimer.isRunning ? styles.stopwatchButtonDisabled : undefined,
+                  pressed && activeLiveTimer.isRunning ? styles.stopwatchButtonPressed : undefined,
                 ]}
                 disabled={!activeLiveTimer.isRunning}
               >
@@ -2599,8 +3177,25 @@ export default function RaceNightScreen({ navigation, route }: any) {
             </View>
 
             <Pressable
+              onPress={confirmResetLapTimer}
+              style={({ pressed }) => [
+                styles.checkeredButton,
+                styles.resetFullWidthButton,
+                !hasLapTimerActivity ? styles.stopwatchButtonDisabled : undefined,
+                pressed && hasLapTimerActivity ? styles.stopwatchButtonPressed : undefined,
+              ]}
+              disabled={!hasLapTimerActivity}
+            >
+              <Text style={styles.checkeredButtonText}>Reset / Start Over</Text>
+            </Pressable>
+
+            <Pressable
               onPress={handleCheckeredFlag}
-              style={[styles.checkeredButton, isHotLapsStage ? styles.stopwatchButtonDisabled : undefined]}
+              style={({ pressed }) => [
+                styles.checkeredButton,
+                isHotLapsStage ? styles.stopwatchButtonDisabled : undefined,
+                pressed && !isHotLapsStage ? styles.stopwatchButtonPressed : undefined,
+              ]}
               disabled={isHotLapsStage}
             >
               <Text style={styles.checkeredButtonText}>Checkered Flag</Text>
@@ -2797,6 +3392,45 @@ export default function RaceNightScreen({ navigation, route }: any) {
         </View>
       </Modal>
       <Modal
+        visible={!!activeRaceNightQuickChangeField}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setActiveRaceNightQuickChangeField(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {activeRaceNightQuickChangeField === "quickChangeTopTeeth"
+                ? "Select Top Quick-Change Gear"
+                : "Select Bottom Quick-Change Gear"}
+            </Text>
+            <View style={styles.optionGrid}>
+              {quickChangeGearOptions.map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => handleSelectRaceNightQuickChangeOption(option)}
+                  style={styles.optionChip}
+                >
+                  <Text style={styles.optionChipText}>{option}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              onPress={() => setActiveRaceNightQuickChangeField(null)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleClearRaceNightQuickChangeOption}
+              style={[styles.modalCloseButton, styles.modalSecondaryStackButton]}
+            >
+              <Text style={styles.modalCloseButtonText}>Clear</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal
         visible={isTitleEditorVisible}
         animationType="fade"
         transparent
@@ -2845,6 +3479,7 @@ function Field({
   label,
   value,
   onChangeText,
+  onFocus,
   onBlur,
   placeholder,
   multiline,
@@ -2855,6 +3490,7 @@ function Field({
   label: string;
   value: string;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
   onBlur?: () => void;
   placeholder: string;
   multiline?: boolean;
@@ -2874,6 +3510,7 @@ function Field({
         placeholderTextColor="#5E7B94"
         multiline={multiline}
         textAlignVertical={multiline ? "top" : "center"}
+        onFocus={onFocus}
         keyboardType={keyboardType}
         editable={editable}
         onBlur={onBlur}
@@ -3475,6 +4112,43 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing(1.5),
   },
+  inventoryChipGrid: {
+    gap: spacing(1),
+    marginBottom: spacing(1.5),
+  },
+  savedInventoryToggleButton: {
+    alignItems: "center",
+    backgroundColor: "#1780D4",
+    borderRadius: 999,
+    marginBottom: spacing(1),
+    paddingVertical: 12,
+  },
+  savedInventoryToggleButtonText: {
+    color: "#F3FAFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  inventoryApplyChip: {
+    backgroundColor: "#102947",
+    borderColor: "#21486A",
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  inventoryApplyChipTitle: {
+    color: "#EAF7FF",
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  inventoryApplyChipMeta: {
+    color: "#8ED4FF",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   fieldBlock: {
     marginBottom: spacing(1.5),
   },
@@ -3557,6 +4231,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#091522",
     borderColor: "#163046",
     color: "#6E8BA3",
+  },
+  readOnlyInput: {
+    backgroundColor: "#091522",
+    borderColor: "#163046",
+    color: "#8EAEC8",
   },
   readOnlyHelper: {
     color: "#7FA6C0",
@@ -3695,6 +4374,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 12,
   },
+  modalSecondaryStackButton: {
+    marginTop: spacing(0.75),
+  },
   modalActionRow: {
     flexDirection: "row",
     gap: spacing(1),
@@ -3816,8 +4498,18 @@ const styles = StyleSheet.create({
   stopButton: {
     backgroundColor: "#A62626",
   },
+  resetButton: {
+    backgroundColor: "#445D72",
+  },
+  resetFullWidthButton: {
+    backgroundColor: "#445D72",
+    borderColor: "#7A95AA",
+  },
   stopwatchButtonDisabled: {
     opacity: 0.45,
+  },
+  stopwatchButtonPressed: {
+    opacity: 0.8,
   },
   stopwatchButtonText: {
     color: "#F3FAFF",
@@ -3909,9 +4601,17 @@ const styles = StyleSheet.create({
     borderColor: "#5AB3FF",
     marginRight: spacing(1),
     backgroundColor: "transparent",
+    overflow: "visible",
   },
   checkboxChecked: {
-    backgroundColor: "#1780D4",
+    backgroundColor: "transparent",
+  },
+  checkboxMark: {
+    height: 24,
+    left: -1,
+    position: "absolute",
+    top: -3,
+    width: 27,
   },
   checklistLabel: {
     color: colors.subtext,

@@ -1,6 +1,7 @@
 import React from "react";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
+import AppPressable from "../components/AppPressable";
 import { colors } from "../theme";
 
 const SUPPORT_EMAIL = "support@precision-pit.com";
@@ -42,9 +43,9 @@ export default function SupportScreen({ navigation }: any) {
         </Text>
       </View>
 
-      <Pressable onPress={() => navigation.navigate("Terms")} style={styles.primaryButton}>
+      <AppPressable onPress={() => navigation.navigate("Terms")} style={styles.primaryButton}>
         <Text style={styles.primaryButtonText}>Terms & Conditions</Text>
-      </Pressable>
+      </AppPressable>
     </ScrollView>
   );
 }

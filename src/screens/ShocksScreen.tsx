@@ -9,8 +9,10 @@ import {
   Text,
   View,
 } from "react-native";
+import AppPressable from "../components/AppPressable";
 import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
+import { isVisiblePreferenceSelected } from "../data/teamPreferences";
 import { SuspensionSetup, useAppStore } from "../store/useAppStore";
 import { colors, spacing } from "../theme";
 
@@ -119,8 +121,16 @@ function SuspensionFieldInput({
 export default function ShocksScreen() {
   const userName = useAppStore((state) => state.userName);
   const suspensionSetup = useAppStore((state) => state.suspensionSetup);
+  const setupVisibilityPreferences = useAppStore((state) => state.setupVisibilityPreferences);
   const saveSuspensionSetup = useAppStore((state) => state.saveSuspensionSetup);
   const [draftSetup, setDraftSetup] = useState<SuspensionSetup>(suspensionSetup);
+
+  const visibleFrontSuspensionFields = frontSuspensionFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "frontSuspension", field.key),
+  );
+  const visibleRearSuspensionFields = rearSuspensionFields.filter((field) =>
+    isVisiblePreferenceSelected(setupVisibilityPreferences, "rearSuspension", field.key),
+  );
 
   useEffect(() => {
     setDraftSetup(suspensionSetup);
@@ -166,41 +176,45 @@ export default function ShocksScreen() {
         </Text>
       </View>
 
-      <View
-        style={styles.card}
-        onStartShouldSetResponder={() => true}
-        onResponderRelease={dismissKeyboardOnBackgroundTap}
-      >
-        <Text style={styles.sectionTitle}>Front Suspension</Text>
-        {frontSuspensionFields.map((field) => (
-          <SuspensionFieldInput
-            key={field.key}
-            field={field}
-            value={draftSetup[field.key]}
-            onChangeText={(value) => handleChange(field.key, value)}
-          />
-        ))}
-      </View>
+      {visibleFrontSuspensionFields.length ? (
+        <View
+          style={styles.card}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={dismissKeyboardOnBackgroundTap}
+        >
+          <Text style={styles.sectionTitle}>Front Suspension</Text>
+          {visibleFrontSuspensionFields.map((field) => (
+            <SuspensionFieldInput
+              key={field.key}
+              field={field}
+              value={draftSetup[field.key]}
+              onChangeText={(value) => handleChange(field.key, value)}
+            />
+          ))}
+        </View>
+      ) : null}
 
-      <View
-        style={styles.card}
-        onStartShouldSetResponder={() => true}
-        onResponderRelease={dismissKeyboardOnBackgroundTap}
-      >
-        <Text style={styles.sectionTitle}>Rear Suspension</Text>
-        {rearSuspensionFields.map((field) => (
-          <SuspensionFieldInput
-            key={field.key}
-            field={field}
-            value={draftSetup[field.key]}
-            onChangeText={(value) => handleChange(field.key, value)}
-          />
-        ))}
-      </View>
+      {visibleRearSuspensionFields.length ? (
+        <View
+          style={styles.card}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={dismissKeyboardOnBackgroundTap}
+        >
+          <Text style={styles.sectionTitle}>Rear Suspension</Text>
+          {visibleRearSuspensionFields.map((field) => (
+            <SuspensionFieldInput
+              key={field.key}
+              field={field}
+              value={draftSetup[field.key]}
+              onChangeText={(value) => handleChange(field.key, value)}
+            />
+          ))}
+        </View>
+      ) : null}
 
-      <Pressable onPress={handleSave} style={styles.button}>
+      <AppPressable onPress={handleSave} style={styles.button}>
         <Text style={styles.buttonText}>Save Suspension Setup</Text>
-      </Pressable>
+      </AppPressable>
     </KeyboardScreen>
   );
 }

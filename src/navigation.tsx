@@ -22,6 +22,10 @@ import TiresScreen from "./screens/TiresScreen";
 import ShocksScreen from "./screens/ShocksScreen";
 import EventsScreen from "./screens/EventsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
+import TeamPreferencesScreen from "./screens/TeamPreferencesScreen";
+import NotificationsScreen from "./screens/NotificationsScreen";
+import PrintExportPreferencesScreen from "./screens/PrintExportPreferencesScreen";
+import AboutScreen from "./screens/AboutScreen";
 import AuthChoiceScreen from "./screens/AuthChoiceScreen";
 import CreateTeamScreen from "./screens/CreateTeamScreen";
 import LoginScreen from "./screens/LoginScreen";
@@ -43,6 +47,7 @@ import TracksScreen from "./screens/TracksScreen";
 import PrivacyScreen from "./screens/PrivacyScreen";
 import SupportScreen from "./screens/SupportScreen";
 import TermsScreen from "./screens/TermsScreen";
+import KartingSetupScreen from "./screens/KartingSetupScreen";
 import { colors } from "./theme";
 import { useAppStore } from "./store/useAppStore";
 
@@ -59,6 +64,10 @@ const iconMap: Record<string, any> = {
   Events: require("../assets/icons/events.png"),
   Settings: require("../assets/icons/settings.png"),
   Tracks: require("../assets/icons/tracks.png"),
+};
+
+const kartingIconOverrides: Partial<Record<string, any>> = {
+  Shocks: require("../assets/icons/chassis.png"),
 };
 
 const stackHeaderStyle = {
@@ -102,7 +111,7 @@ const navigationTheme = {
   },
 };
 
-const tabLabels: Record<string, string> = {
+const defaultTabLabels: Record<string, string> = {
   Home: "Home",
   Account: "Account",
   Gears: "Gears",
@@ -114,8 +123,39 @@ const tabLabels: Record<string, string> = {
   Tracks: "Tracks",
 };
 
+function TiresTabScreen(props: any) {
+  const raceCarType = useAppStore((state) => state.raceCarType);
+
+  if (raceCarType === "Karting") {
+    return <KartingSetupScreen {...props} route={{ ...props.route, params: { ...props.route?.params, section: "Tires" } }} />;
+  }
+
+  return <TiresScreen {...props} />;
+}
+
+function GearsTabScreen(props: any) {
+  const raceCarType = useAppStore((state) => state.raceCarType);
+
+  if (raceCarType === "Karting") {
+    return <KartingSetupScreen {...props} route={{ ...props.route, params: { ...props.route?.params, section: "Gears" } }} />;
+  }
+
+  return <GearsScreen {...props} />;
+}
+
+function ShocksTabScreen(props: any) {
+  const raceCarType = useAppStore((state) => state.raceCarType);
+
+  if (raceCarType === "Karting") {
+    return <KartingSetupScreen {...props} route={{ ...props.route, params: { ...props.route?.params, section: "Kart Chassis" } }} />;
+  }
+
+  return <ShocksScreen {...props} />;
+}
+
 function HorizontalTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const raceCarType = useAppStore((state) => state.raceCarType);
 
   return (
     <View style={[styles.tabBarShell, { paddingBottom: Math.max(insets.bottom, 10) + 8 }]}>
@@ -127,7 +167,14 @@ function HorizontalTabBar({ state, descriptors, navigation }: BottomTabBarProps)
         {state.routes.map((route, index) => {
           const descriptor = descriptors[route.key];
           const options = descriptor.options;
-          const label = tabLabels[route.name] || route.name;
+          const label =
+            raceCarType === "Karting" && route.name === "Shocks"
+              ? "Chassis"
+              : defaultTabLabels[route.name] || route.name;
+          const iconSource =
+            raceCarType === "Karting" && kartingIconOverrides[route.name]
+              ? kartingIconOverrides[route.name]
+              : iconMap[route.name];
           const focused = state.index === index;
 
           const onPress = () => {
@@ -161,7 +208,7 @@ function HorizontalTabBar({ state, descriptors, navigation }: BottomTabBarProps)
               style={[styles.tabButton, focused ? styles.tabButtonFocused : undefined]}
             >
               <Image
-                source={iconMap[route.name]}
+                source={iconSource}
                 style={[styles.tabIcon, focused ? styles.tabIconFocused : undefined]}
                 resizeMode="contain"
               />
@@ -182,6 +229,7 @@ function MainTabs({ navigation }: any) {
   return (
     <View style={styles.mainTabsShell}>
       <Tab.Navigator
+        backBehavior="history"
         tabBar={(props) => <HorizontalTabBar {...props} />}
         screenOptions={({ route }) => ({
           headerStyle: { backgroundColor: colors.bg },
@@ -193,10 +241,10 @@ function MainTabs({ navigation }: any) {
       >
         <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Account" component={AccountScreen} options={{ headerShown: false }} />
-        <Tab.Screen name="Gears" component={GearsScreen} options={{ headerShown: false }} />
+        <Tab.Screen name="Gears" component={GearsTabScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Setups" component={SetupsScreen} options={{ headerShown: false }} />
-        <Tab.Screen name="Tires" component={TiresScreen} options={{ headerShown: false }} />
-        <Tab.Screen name="Shocks" component={ShocksScreen} options={{ headerShown: false }} />
+        <Tab.Screen name="Tires" component={TiresTabScreen} options={{ headerShown: false }} />
+        <Tab.Screen name="Shocks" component={ShocksTabScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Events" component={EventsScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
         <Tab.Screen name="Tracks" component={TracksScreen} options={{ headerShown: false }} />
@@ -247,9 +295,34 @@ function SignedInStack() {
         options={buildStackOptions("Saved Tracks", "Account")}
       />
       <Stack.Screen
+        name="SetupsOverview"
+        component={SetupsScreen}
+        options={buildStackOptions("Setups")}
+      />
+      <Stack.Screen
         name="Chassis"
         component={ChassisScreen}
         options={buildStackOptions("Chassis", "Setups")}
+      />
+      <Stack.Screen
+        name="TiresDetail"
+        component={TiresScreen}
+        options={buildStackOptions("Tires", "Setups")}
+      />
+      <Stack.Screen
+        name="ShocksDetail"
+        component={ShocksScreen}
+        options={buildStackOptions("Suspension", "Setups")}
+      />
+      <Stack.Screen
+        name="GearsDetail"
+        component={GearsScreen}
+        options={buildStackOptions("Gears", "Setups")}
+      />
+      <Stack.Screen
+        name="KartingSetup"
+        component={KartingSetupScreen}
+        options={buildStackOptions("Karting Setup", "Setups")}
       />
       <Stack.Screen
         name="EventDetail"
@@ -297,6 +370,33 @@ function SignedInStack() {
         options={buildStackOptions("Support", "Home")}
       />
       <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={buildStackOptions("Notifications", "Settings")}
+      />
+      <Stack.Screen
+        name="PrintExportPreferences"
+        component={PrintExportPreferencesScreen}
+        options={buildStackOptions("Print / Export Preferences", "Settings")}
+      />
+      <Stack.Screen
+        name="About"
+        component={AboutScreen}
+        options={buildStackOptions("About Precision Pit", "Settings")}
+      />
+        <Stack.Screen
+          name="SetupPreferences"
+          component={TeamPreferencesScreen}
+          initialParams={{ mode: "setup" }}
+          options={buildStackOptions("Setup Preferences", "Settings")}
+        />
+        <Stack.Screen
+          name="ChecklistPreferences"
+          component={TeamPreferencesScreen}
+          initialParams={{ mode: "checklist" }}
+          options={buildStackOptions("Checklist Preferences", "Settings")}
+        />
+      <Stack.Screen
         name="Terms"
         component={TermsScreen}
         options={buildStackOptions("Terms & Conditions", "Support")}
@@ -317,6 +417,7 @@ function LaunchGate() {
   const userEmail = useAppStore((state) => state.userEmail);
   const handleAuthRedirect = useAppStore((state) => state.handleAuthRedirect);
   const [isSplashFinished, setIsSplashFinished] = useState(false);
+  const [hasLaunchTimedOut, setHasLaunchTimedOut] = useState(false);
 
   useEffect(() => {
     hydrate();
@@ -326,6 +427,15 @@ function LaunchGate() {
     const timeout = setTimeout(() => {
       setIsSplashFinished(true);
     }, 2600);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      console.warn("Launch gate timed out waiting for hydration. Continuing with fallback state.");
+      setHasLaunchTimedOut(true);
+    }, 4500);
 
     return () => clearTimeout(timeout);
   }, []);
@@ -356,7 +466,7 @@ function LaunchGate() {
     };
   }, [handleAuthRedirect]);
 
-  if (!isHydrated || !isSplashFinished) {
+  if ((!isHydrated && !hasLaunchTimedOut) || !isSplashFinished) {
     return <AnimatedSplashScreen />;
   }
 

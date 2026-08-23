@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import TextInput from "../components/AppTextInput";
+import AppPressable from "../components/AppPressable";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppStore } from "../store/useAppStore";
@@ -75,9 +76,9 @@ export default function ResetPasswordScreen() {
             onChangeText={setConfirmPassword}
           />
 
-            <Pressable onPress={handleSubmit} style={styles.button}>
+            <AppPressable onPress={handleSubmit} style={styles.button}>
               <Text style={styles.buttonText}>Update Password</Text>
-            </Pressable>
+            </AppPressable>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

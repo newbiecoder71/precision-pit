@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput as RNTextInput,
@@ -17,7 +16,9 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
 import TextInput from "../components/AppTextInput";
+import AppPressable from "../components/AppPressable";
 import { LinearGradient } from "expo-linear-gradient";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useAppStore } from "../store/useAppStore";
@@ -30,6 +31,7 @@ import { colors } from "../theme";
 
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
+  const scrollRef = useRef<KeyboardAwareScrollView>(null);
   const storedEmail = useAppStore((state) => state.userEmail);
   const [email, setEmail] = useState(storedEmail ?? "");
   const [password, setPassword] = useState("");
@@ -41,6 +43,7 @@ export default function LoginScreen() {
   const [isForgotPasswordHovered, setIsForgotPasswordHovered] = useState(false);
   const [isLoginHovered, setIsLoginHovered] = useState(false);
   const [shouldFocusPasswordOnLoad, setShouldFocusPasswordOnLoad] = useState(false);
+  const [loginButtonY, setLoginButtonY] = useState(0);
   const logIn = useAppStore((state) => state.logIn);
   const emailInputRef = useRef<RNTextInput>(null);
   const passwordInputRef = useRef<RNTextInput>(null);
@@ -195,6 +198,12 @@ export default function LoginScreen() {
     }
   };
 
+  const scrollLoginButtonIntoView = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToPosition?.(0, Math.max(loginButtonY - 180, 0), true);
+    }, 80);
+  };
+
   return (
     <LinearGradient colors={["#09111B", "#001B2D"]} style={styles.background}>
       <SafeAreaView style={styles.safeArea}>
@@ -203,14 +212,21 @@ export default function LoginScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 96 : 24}
         >
-          <ScrollView
+          <KeyboardAwareScrollView
+            ref={scrollRef}
             contentContainerStyle={styles.container}
             keyboardDismissMode="none"
             keyboardShouldPersistTaps="always"
+            enableOnAndroid
+            enableAutomaticScroll
+            extraHeight={Platform.OS === "android" ? 120 : 60}
+            extraScrollHeight={Platform.OS === "android" ? 80 : 24}
+            keyboardOpeningTime={0}
+            showsVerticalScrollIndicator={false}
           >
-            <Pressable onPress={() => navigation.navigate("AuthChoice")} style={styles.backButton}>
+            <AppPressable onPress={() => navigation.navigate("AuthChoice")} style={styles.backButton}>
               <Text style={styles.backButtonText}>{"< Back"}</Text>
-            </Pressable>
+            </AppPressable>
 
             <Image
               source={require("../../assets/logo/app-icon.png")}
@@ -222,16 +238,32 @@ export default function LoginScreen() {
               Use the same email address you signed up with or were invited with.
             </Text>
 
-            <TextInput
-              ref={emailInputRef}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              style={[styles.input, webTextCursor]}
-              placeholder="Email address"
-              placeholderTextColor="#4F7390"
-              value={email}
-              onChangeText={setEmail}
-            />
+            <View style={styles.emailFieldWrap}>
+              <TextInput
+                ref={emailInputRef}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={[styles.input, styles.emailInput, webTextCursor]}
+                placeholder="Email address"
+                placeholderTextColor="#4F7390"
+                value={email}
+                onChangeText={setEmail}
+              />
+              {email ? (
+                <Pressable
+                  onPress={() => {
+                    setEmail("");
+                    setTimeout(() => {
+                      emailInputRef.current?.focus();
+                    }, 0);
+                  }}
+                  style={styles.emailClearButton}
+                  hitSlop={8}
+                >
+                  <Text style={styles.emailClearButtonText}>x</Text>
+                </Pressable>
+              ) : null}
+            </View>
 
             <View style={styles.passwordFieldWrap}>
               <TextInput
@@ -242,6 +274,8 @@ export default function LoginScreen() {
                 placeholderTextColor="#4F7390"
                 value={password}
                 onChangeText={setPassword}
+                returnKeyType="done"
+                onSubmitEditing={scrollLoginButtonIntoView}
               />
               <Pressable
                 onPress={() => setShowPassword((current) => !current)}
@@ -286,6 +320,7 @@ export default function LoginScreen() {
 
             <Pressable
               onPress={handleSubmit}
+              onLayout={(event) => setLoginButtonY(event.nativeEvent.layout.y)}
               onHoverIn={() => setIsLoginHovered(true)}
               onHoverOut={() => setIsLoginHovered(false)}
               style={({ pressed }) => [
@@ -304,11 +339,11 @@ export default function LoginScreen() {
             </Pressable>
 
             {!isBiometricLoading && biometricReady ? (
-              <Pressable onPress={handleBiometricLogin} style={styles.secondaryButton} disabled={isSubmitting}>
+              <AppPressable onPress={handleBiometricLogin} style={styles.secondaryButton} disabled={isSubmitting}>
                 <Text style={styles.secondaryButtonText}>Use Fingerprint</Text>
-              </Pressable>
+              </AppPressable>
             ) : null}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </LinearGradient>
@@ -365,6 +400,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 14,
+  },
+  emailFieldWrap: {
+    position: "relative",
+  },
+  emailInput: {
+    paddingRight: 50,
+  },
+  emailClearButton: {
+    alignItems: "center",
+    height: 44,
+    justifyContent: "center",
+    position: "absolute",
+    right: 12,
+    top: 6,
+    width: 32,
+  },
+  emailClearButtonText: {
+    color: "#90A6B9",
+    fontSize: 15,
+    fontWeight: "400",
   },
   passwordFieldWrap: {
     position: "relative",

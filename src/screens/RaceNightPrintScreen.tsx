@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -16,6 +16,11 @@ import { formatStoredDateValue } from "../utils/date";
 import { formatGearRatio, calculateGearRatio } from "../utils/gears";
 import { normalizeFractionMeasurementInput } from "../utils/measurementInputs";
 import { formatMeasurementValue, calculateStaggerValue } from "../utils/tireMeasurements";
+import {
+  defaultPrintExportPreferences,
+  loadPrintExportPreferences,
+  type PrintExportPreferences,
+} from "../utils/appPreferences";
 
 function formatOrdinal(value: string) {
   const numericValue = Number.parseInt(value.trim(), 10);
@@ -97,7 +102,11 @@ function fieldRow(label: string, value?: string) {
   )}</div></div>`;
 }
 
-function buildStageHtml(stageKey: RaceNightStageKey, stage: RaceNightStageData) {
+function buildStageHtml(
+  stageKey: RaceNightStageKey,
+  stage: RaceNightStageData,
+  preferences: PrintExportPreferences,
+) {
   const frontStaggerValue = calculateStaggerValue(
     stage.setupAdjustments.tires.lfCircumference,
     stage.setupAdjustments.tires.rfCircumference,
@@ -119,7 +128,9 @@ function buildStageHtml(stageKey: RaceNightStageKey, stage: RaceNightStageData) 
     <section class="stage">
       <div class="stage-title">${escapeHtml(raceNightStageLabels[stageKey])}</div>
       <div class="stage-grid">
-        <div class="card">
+        ${
+          preferences.includeWeather
+            ? `<div class="card">
           <div class="card-title">Weather</div>
           ${fieldRow("ZIP", stage.weatherZipCode)}
           ${fieldRow("Temperature", stage.weatherTemperature)}
@@ -128,8 +139,12 @@ function buildStageHtml(stageKey: RaceNightStageKey, stage: RaceNightStageData) 
           ${fieldRow("Sky", stage.skyCondition)}
           ${fieldRow("Precipitation", stage.precipitation)}
           ${fieldRow("Weather Notes", stage.weatherNotes)}
-        </div>
-        <div class="card">
+        </div>`
+            : ""
+        }
+        ${
+          preferences.includeTrack
+            ? `<div class="card">
           <div class="card-title">Track</div>
           ${fieldRow("Track Temp", stage.trackTemperature)}
           ${fieldRow("Track Type", stage.trackType)}
@@ -138,19 +153,27 @@ function buildStageHtml(stageKey: RaceNightStageKey, stage: RaceNightStageData) 
           ${fieldRow("Surface", stage.trackSurface)}
           ${fieldRow("Moisture", stage.moistureState)}
           ${fieldRow("Track Notes", stage.trackNotes)}
-        </div>
-        <div class="card">
+        </div>`
+            : ""
+        }
+        ${
+          preferences.includeResults
+            ? `<div class="card">
           <div class="card-title">Results</div>
           ${fieldRow("Total Laps", stage.totalLaps)}
           ${fieldRow("Start Position", formatOrdinal(stage.startPosition))}
           ${fieldRow("Finish Position", formatOrdinal(stage.finishPosition))}
           ${fieldRow("Setup Notes", stage.setupAdjustments.notes)}
-          ${fieldRow("Driver Notes", stage.driverNotes)}
-          ${fieldRow("Crew Notes", stage.crewNotes)}
-        </div>
+          ${preferences.includeDriverNotes ? fieldRow("Driver Notes", stage.driverNotes) : ""}
+          ${preferences.includeCrewNotes ? fieldRow("Crew Notes", stage.crewNotes) : ""}
+        </div>`
+            : ""
+        }
       </div>
 
-      <div class="setup-block">
+      ${
+        preferences.includeSetups
+          ? `<div class="setup-block">
         <div class="setup-title">Setups</div>
         <div class="setup-grid">
           <div class="card">
@@ -273,15 +296,17 @@ function buildStageHtml(stageKey: RaceNightStageKey, stage: RaceNightStageData) 
             ${fieldRow("Gear Notes", stage.setupAdjustments.gears.notes)}
           </div>
         </div>
-      </div>
+      </div>`
+          : ""
+      }
     </section>
   `;
 }
 
-function buildRaceNightReportHtml(raceNight: RaceNight) {
+function buildRaceNightReportHtml(raceNight: RaceNight, preferences: PrintExportPreferences) {
   const stageMarkup = raceNightStageOrder
     .filter((stageKey) => stageHasMeaningfulContent(raceNight.stageSessions[stageKey]))
-    .map((stageKey) => buildStageHtml(stageKey, raceNight.stageSessions[stageKey]))
+    .map((stageKey) => buildStageHtml(stageKey, raceNight.stageSessions[stageKey], preferences))
     .join("");
 
   return `
@@ -354,8 +379,20 @@ function PreviewCard({
 export default function RaceNightPrintScreen({ route }: any) {
   const raceNightId = route.params?.raceNightId as string;
   const raceNight = useAppStore((state) => state.raceNights.find((entry) => entry.id === raceNightId));
+  const [printPreferences, setPrintPreferences] = useState<PrintExportPreferences>(
+    defaultPrintExportPreferences,
+  );
 
-  const reportHtml = useMemo(() => (raceNight ? buildRaceNightReportHtml(raceNight) : ""), [raceNight]);
+  useEffect(() => {
+    void (async () => {
+      setPrintPreferences(await loadPrintExportPreferences());
+    })();
+  }, []);
+
+  const reportHtml = useMemo(
+    () => (raceNight ? buildRaceNightReportHtml(raceNight, printPreferences) : ""),
+    [printPreferences, raceNight],
+  );
 
   const handlePrint = async () => {
     if (!reportHtml) {
@@ -450,179 +487,197 @@ export default function RaceNightPrintScreen({ route }: any) {
             <View key={stageKey} style={styles.stageSection}>
               <Text style={styles.stageTitle}>{raceNightStageLabels[stageKey]}</Text>
 
-              <PreviewCard
-                title="Weather"
-                rows={[
-                  { label: "ZIP", value: displayValue(stage.weatherZipCode) },
-                  { label: "Temperature", value: displayValue(stage.weatherTemperature) },
-                  { label: "Humidity", value: displayValue(stage.humidity) },
-                  { label: "Wind", value: displayValue(stage.windCondition) },
-                  { label: "Sky", value: displayValue(stage.skyCondition) },
-                  { label: "Precipitation", value: displayValue(stage.precipitation) },
-                ]}
-              />
+              {printPreferences.includeWeather ? (
+                <PreviewCard
+                  title="Weather"
+                  rows={[
+                    { label: "ZIP", value: displayValue(stage.weatherZipCode) },
+                    { label: "Temperature", value: displayValue(stage.weatherTemperature) },
+                    { label: "Humidity", value: displayValue(stage.humidity) },
+                    { label: "Wind", value: displayValue(stage.windCondition) },
+                    { label: "Sky", value: displayValue(stage.skyCondition) },
+                    { label: "Precipitation", value: displayValue(stage.precipitation) },
+                  ]}
+                />
+              ) : null}
 
-              <PreviewCard
-                title="Track"
-                rows={[
-                  { label: "Track Temp", value: displayValue(stage.trackTemperature) },
-                  { label: "Track Type", value: displayValue(stage.trackType) },
-                  { label: "Banking", value: displayValue(stage.trackBanking) },
-                  { label: "Length", value: displayValue(stage.trackLength) },
-                  { label: "Surface", value: displayValue(stage.trackSurface) },
-                  { label: "Moisture", value: displayValue(stage.moistureState) },
-                ]}
-              />
+              {printPreferences.includeTrack ? (
+                <PreviewCard
+                  title="Track"
+                  rows={[
+                    { label: "Track Temp", value: displayValue(stage.trackTemperature) },
+                    { label: "Track Type", value: displayValue(stage.trackType) },
+                    { label: "Banking", value: displayValue(stage.trackBanking) },
+                    { label: "Length", value: displayValue(stage.trackLength) },
+                    { label: "Surface", value: displayValue(stage.trackSurface) },
+                    { label: "Moisture", value: displayValue(stage.moistureState) },
+                  ]}
+                />
+              ) : null}
 
-              <PreviewCard
-                title="Results"
-                rows={[
-                  { label: "Total Laps", value: displayValue(stage.totalLaps) },
-                  { label: "Start Position", value: formatOrdinal(stage.startPosition) },
-                  { label: "Finish Position", value: formatOrdinal(stage.finishPosition) },
-                  { label: "Setup Notes", value: displayValue(stage.setupAdjustments.notes) },
-                  { label: "Driver Notes", value: displayValue(stage.driverNotes) },
-                  { label: "Crew Notes", value: displayValue(stage.crewNotes) },
-                ]}
-              />
+              {printPreferences.includeResults ? (
+                <PreviewCard
+                  title="Results"
+                  rows={[
+                    { label: "Total Laps", value: displayValue(stage.totalLaps) },
+                    { label: "Start Position", value: formatOrdinal(stage.startPosition) },
+                    { label: "Finish Position", value: formatOrdinal(stage.finishPosition) },
+                    { label: "Setup Notes", value: displayValue(stage.setupAdjustments.notes) },
+                    ...(printPreferences.includeDriverNotes
+                      ? [{ label: "Driver Notes", value: displayValue(stage.driverNotes) }]
+                      : []),
+                    ...(printPreferences.includeCrewNotes
+                      ? [{ label: "Crew Notes", value: displayValue(stage.crewNotes) }]
+                      : []),
+                  ]}
+                />
+              ) : null}
 
-              <PreviewCard
-                title="Chassis"
-                rows={[
-                  { label: "LF Ride Height", value: displayMeasurementValue(stage.setupAdjustments.chassis.rideHeightLf) },
-                  { label: "RF Ride Height", value: displayMeasurementValue(stage.setupAdjustments.chassis.rideHeightRf) },
-                  { label: "LR Ride Height", value: displayMeasurementValue(stage.setupAdjustments.chassis.rideHeightLr) },
-                  { label: "RR Ride Height", value: displayMeasurementValue(stage.setupAdjustments.chassis.rideHeightRr) },
-                  { label: "Top Wing Angle", value: displayValue(stage.setupAdjustments.chassis.topWingAngle) },
-                  { label: "Slider Position", value: displayValue(stage.setupAdjustments.chassis.sliderPosition) },
-                  { label: "Wicker Bill Size", value: displayValue(stage.setupAdjustments.chassis.wickerBillSize) },
-                  { label: "Nose Wing Angle", value: displayValue(stage.setupAdjustments.chassis.noseWingAngle) },
-                  {
-                    label: "Crossweight / Wedge %",
-                    value: displayValue(stage.setupAdjustments.chassis.crossweightWedge),
-                  },
-                  {
-                    label: "Left Side %",
-                    value: displayValue(stage.setupAdjustments.chassis.leftSidePercentage),
-                  },
-                  { label: "Rear %", value: displayValue(stage.setupAdjustments.chassis.rearPercentage) },
-                ]}
-              />
+              {printPreferences.includeSetups ? (
+                <>
+                  <PreviewCard
+                    title="Chassis"
+                    rows={[
+                      { label: "LF Ride Height", value: displayMeasurementValue(stage.setupAdjustments.chassis.rideHeightLf) },
+                      { label: "RF Ride Height", value: displayMeasurementValue(stage.setupAdjustments.chassis.rideHeightRf) },
+                      { label: "LR Ride Height", value: displayMeasurementValue(stage.setupAdjustments.chassis.rideHeightLr) },
+                      { label: "RR Ride Height", value: displayMeasurementValue(stage.setupAdjustments.chassis.rideHeightRr) },
+                      { label: "Top Wing Angle", value: displayValue(stage.setupAdjustments.chassis.topWingAngle) },
+                      { label: "Slider Position", value: displayValue(stage.setupAdjustments.chassis.sliderPosition) },
+                      { label: "Wicker Bill Size", value: displayValue(stage.setupAdjustments.chassis.wickerBillSize) },
+                      { label: "Nose Wing Angle", value: displayValue(stage.setupAdjustments.chassis.noseWingAngle) },
+                      {
+                        label: "Crossweight / Wedge %",
+                        value: displayValue(stage.setupAdjustments.chassis.crossweightWedge),
+                      },
+                      {
+                        label: "Left Side %",
+                        value: displayValue(stage.setupAdjustments.chassis.leftSidePercentage),
+                      },
+                      { label: "Rear %", value: displayValue(stage.setupAdjustments.chassis.rearPercentage) },
+                    ]}
+                  />
 
-              <PreviewCard
-                title="Tires & Wheels"
-                rows={[
-                  { label: "LF Circumference", value: displayValue(stage.setupAdjustments.tires.lfCircumference) },
-                  { label: "RF Circumference", value: displayValue(stage.setupAdjustments.tires.rfCircumference) },
-                  { label: "LR Circumference", value: displayValue(stage.setupAdjustments.tires.lrCircumference) },
-                  { label: "RR Circumference", value: displayValue(stage.setupAdjustments.tires.rrCircumference) },
-                  {
-                    label: "Front Stagger",
-                    value:
-                      frontStaggerValue == null ? "-" : formatMeasurementValue(frontStaggerValue, "fraction"),
-                  },
-                  {
-                    label: "Rear Stagger",
-                    value:
-                      rearStaggerValue == null ? "-" : formatMeasurementValue(rearStaggerValue, "fraction"),
-                  },
-                  { label: "LF Pressure", value: displayValue(stage.setupAdjustments.tires.lfPressure) },
-                  { label: "RF Pressure", value: displayValue(stage.setupAdjustments.tires.rfPressure) },
-                  { label: "LR Pressure", value: displayValue(stage.setupAdjustments.tires.lrPressure) },
-                  { label: "RR Pressure", value: displayValue(stage.setupAdjustments.tires.rrPressure) },
-                  { label: "LF Wheel Offset", value: displayMeasurementValue(stage.setupAdjustments.tires.lfWheelOffset) },
-                  { label: "RF Wheel Offset", value: displayMeasurementValue(stage.setupAdjustments.tires.rfWheelOffset) },
-                  { label: "LR Wheel Offset", value: displayMeasurementValue(stage.setupAdjustments.tires.lrWheelOffset) },
-                  { label: "RR Wheel Offset", value: displayMeasurementValue(stage.setupAdjustments.tires.rrWheelOffset) },
-                  { label: "LF Temp Inner", value: displayValue(stage.setupAdjustments.tires.lfTempInner) },
-                  { label: "LF Temp Middle", value: displayValue(stage.setupAdjustments.tires.lfTempMiddle) },
-                  { label: "LF Temp Outer", value: displayValue(stage.setupAdjustments.tires.lfTempOuter) },
-                  {
-                    label: "LF Temp Avg",
-                    value: displayValue(
-                      formatAverageTireTemp([
-                        stage.setupAdjustments.tires.lfTempInner,
-                        stage.setupAdjustments.tires.lfTempMiddle,
-                        stage.setupAdjustments.tires.lfTempOuter,
-                      ]),
-                    ),
-                  },
-                  { label: "RF Temp Inner", value: displayValue(stage.setupAdjustments.tires.rfTempInner) },
-                  { label: "RF Temp Middle", value: displayValue(stage.setupAdjustments.tires.rfTempMiddle) },
-                  { label: "RF Temp Outer", value: displayValue(stage.setupAdjustments.tires.rfTempOuter) },
-                  {
-                    label: "RF Temp Avg",
-                    value: displayValue(
-                      formatAverageTireTemp([
-                        stage.setupAdjustments.tires.rfTempInner,
-                        stage.setupAdjustments.tires.rfTempMiddle,
-                        stage.setupAdjustments.tires.rfTempOuter,
-                      ]),
-                    ),
-                  },
-                  { label: "LR Temp Inner", value: displayValue(stage.setupAdjustments.tires.lrTempInner) },
-                  { label: "LR Temp Middle", value: displayValue(stage.setupAdjustments.tires.lrTempMiddle) },
-                  { label: "LR Temp Outer", value: displayValue(stage.setupAdjustments.tires.lrTempOuter) },
-                  {
-                    label: "LR Temp Avg",
-                    value: displayValue(
-                      formatAverageTireTemp([
-                        stage.setupAdjustments.tires.lrTempInner,
-                        stage.setupAdjustments.tires.lrTempMiddle,
-                        stage.setupAdjustments.tires.lrTempOuter,
-                      ]),
-                    ),
-                  },
-                  { label: "RR Temp Inner", value: displayValue(stage.setupAdjustments.tires.rrTempInner) },
-                  { label: "RR Temp Middle", value: displayValue(stage.setupAdjustments.tires.rrTempMiddle) },
-                  { label: "RR Temp Outer", value: displayValue(stage.setupAdjustments.tires.rrTempOuter) },
-                  {
-                    label: "RR Temp Avg",
-                    value: displayValue(
-                      formatAverageTireTemp([
-                        stage.setupAdjustments.tires.rrTempInner,
-                        stage.setupAdjustments.tires.rrTempMiddle,
-                        stage.setupAdjustments.tires.rrTempOuter,
-                      ]),
-                    ),
-                  },
-                ]}
-              />
+                  <PreviewCard
+                    title="Tires & Wheels"
+                    rows={[
+                      { label: "LF Circumference", value: displayValue(stage.setupAdjustments.tires.lfCircumference) },
+                      { label: "RF Circumference", value: displayValue(stage.setupAdjustments.tires.rfCircumference) },
+                      { label: "LR Circumference", value: displayValue(stage.setupAdjustments.tires.lrCircumference) },
+                      { label: "RR Circumference", value: displayValue(stage.setupAdjustments.tires.rrCircumference) },
+                      {
+                        label: "Front Stagger",
+                        value:
+                          frontStaggerValue == null
+                            ? "-"
+                            : formatMeasurementValue(frontStaggerValue, "fraction"),
+                      },
+                      {
+                        label: "Rear Stagger",
+                        value:
+                          rearStaggerValue == null
+                            ? "-"
+                            : formatMeasurementValue(rearStaggerValue, "fraction"),
+                      },
+                      { label: "LF Pressure", value: displayValue(stage.setupAdjustments.tires.lfPressure) },
+                      { label: "RF Pressure", value: displayValue(stage.setupAdjustments.tires.rfPressure) },
+                      { label: "LR Pressure", value: displayValue(stage.setupAdjustments.tires.lrPressure) },
+                      { label: "RR Pressure", value: displayValue(stage.setupAdjustments.tires.rrPressure) },
+                      { label: "LF Wheel Offset", value: displayMeasurementValue(stage.setupAdjustments.tires.lfWheelOffset) },
+                      { label: "RF Wheel Offset", value: displayMeasurementValue(stage.setupAdjustments.tires.rfWheelOffset) },
+                      { label: "LR Wheel Offset", value: displayMeasurementValue(stage.setupAdjustments.tires.lrWheelOffset) },
+                      { label: "RR Wheel Offset", value: displayMeasurementValue(stage.setupAdjustments.tires.rrWheelOffset) },
+                      { label: "LF Temp Inner", value: displayValue(stage.setupAdjustments.tires.lfTempInner) },
+                      { label: "LF Temp Middle", value: displayValue(stage.setupAdjustments.tires.lfTempMiddle) },
+                      { label: "LF Temp Outer", value: displayValue(stage.setupAdjustments.tires.lfTempOuter) },
+                      {
+                        label: "LF Temp Avg",
+                        value: displayValue(
+                          formatAverageTireTemp([
+                            stage.setupAdjustments.tires.lfTempInner,
+                            stage.setupAdjustments.tires.lfTempMiddle,
+                            stage.setupAdjustments.tires.lfTempOuter,
+                          ]),
+                        ),
+                      },
+                      { label: "RF Temp Inner", value: displayValue(stage.setupAdjustments.tires.rfTempInner) },
+                      { label: "RF Temp Middle", value: displayValue(stage.setupAdjustments.tires.rfTempMiddle) },
+                      { label: "RF Temp Outer", value: displayValue(stage.setupAdjustments.tires.rfTempOuter) },
+                      {
+                        label: "RF Temp Avg",
+                        value: displayValue(
+                          formatAverageTireTemp([
+                            stage.setupAdjustments.tires.rfTempInner,
+                            stage.setupAdjustments.tires.rfTempMiddle,
+                            stage.setupAdjustments.tires.rfTempOuter,
+                          ]),
+                        ),
+                      },
+                      { label: "LR Temp Inner", value: displayValue(stage.setupAdjustments.tires.lrTempInner) },
+                      { label: "LR Temp Middle", value: displayValue(stage.setupAdjustments.tires.lrTempMiddle) },
+                      { label: "LR Temp Outer", value: displayValue(stage.setupAdjustments.tires.lrTempOuter) },
+                      {
+                        label: "LR Temp Avg",
+                        value: displayValue(
+                          formatAverageTireTemp([
+                            stage.setupAdjustments.tires.lrTempInner,
+                            stage.setupAdjustments.tires.lrTempMiddle,
+                            stage.setupAdjustments.tires.lrTempOuter,
+                          ]),
+                        ),
+                      },
+                      { label: "RR Temp Inner", value: displayValue(stage.setupAdjustments.tires.rrTempInner) },
+                      { label: "RR Temp Middle", value: displayValue(stage.setupAdjustments.tires.rrTempMiddle) },
+                      { label: "RR Temp Outer", value: displayValue(stage.setupAdjustments.tires.rrTempOuter) },
+                      {
+                        label: "RR Temp Avg",
+                        value: displayValue(
+                          formatAverageTireTemp([
+                            stage.setupAdjustments.tires.rrTempInner,
+                            stage.setupAdjustments.tires.rrTempMiddle,
+                            stage.setupAdjustments.tires.rrTempOuter,
+                          ]),
+                        ),
+                      },
+                    ]}
+                  />
 
-              <PreviewCard
-                title="Suspension"
-                rows={[
-                  { label: "Front Springs", value: displayValue(stage.setupAdjustments.suspension.frontSprings) },
-                  { label: "Front Shocks", value: displayValue(stage.setupAdjustments.suspension.frontShocks) },
-                  { label: "Camber", value: displayValue(stage.setupAdjustments.suspension.camber) },
-                  { label: "Caster", value: displayValue(stage.setupAdjustments.suspension.caster) },
-                  { label: "Toe", value: displayValue(stage.setupAdjustments.suspension.toe) },
-                  {
-                    label: "Travel / Bump Stops",
-                    value: displayValue(stage.setupAdjustments.suspension.travelBumpStops),
-                  },
-                  { label: "Rear Springs", value: displayValue(stage.setupAdjustments.suspension.rearSprings) },
-                  { label: "Rear Shocks", value: displayValue(stage.setupAdjustments.suspension.rearShocks) },
-                ]}
-              />
+                  <PreviewCard
+                    title="Suspension"
+                    rows={[
+                      { label: "Front Springs", value: displayValue(stage.setupAdjustments.suspension.frontSprings) },
+                      { label: "Front Shocks", value: displayValue(stage.setupAdjustments.suspension.frontShocks) },
+                      { label: "Camber", value: displayValue(stage.setupAdjustments.suspension.camber) },
+                      { label: "Caster", value: displayValue(stage.setupAdjustments.suspension.caster) },
+                      { label: "Toe", value: displayValue(stage.setupAdjustments.suspension.toe) },
+                      {
+                        label: "Travel / Bump Stops",
+                        value: displayValue(stage.setupAdjustments.suspension.travelBumpStops),
+                      },
+                      { label: "Rear Springs", value: displayValue(stage.setupAdjustments.suspension.rearSprings) },
+                      { label: "Rear Shocks", value: displayValue(stage.setupAdjustments.suspension.rearShocks) },
+                    ]}
+                  />
 
-              <PreviewCard
-                title="Driveline"
-                rows={[
-                  { label: "Ring Teeth", value: displayValue(stage.setupAdjustments.gears.ringTeeth) },
-                  { label: "Pinion Teeth", value: displayValue(stage.setupAdjustments.gears.pinionTeeth) },
-                  {
-                    label: "Top Quick-Change Gear",
-                    value: displayValue(stage.setupAdjustments.gears.quickChangeTopTeeth),
-                  },
-                  {
-                    label: "Bottom Quick-Change Gear",
-                    value: displayValue(stage.setupAdjustments.gears.quickChangeBottomTeeth),
-                  },
-                  { label: "Final Drive Ratio", value: displayValue(gearRatio) },
-                  { label: "Gear Notes", value: displayValue(stage.setupAdjustments.gears.notes) },
-                ]}
-              />
+                  <PreviewCard
+                    title="Driveline"
+                    rows={[
+                      { label: "Ring Teeth", value: displayValue(stage.setupAdjustments.gears.ringTeeth) },
+                      { label: "Pinion Teeth", value: displayValue(stage.setupAdjustments.gears.pinionTeeth) },
+                      {
+                        label: "Top Quick-Change Gear",
+                        value: displayValue(stage.setupAdjustments.gears.quickChangeTopTeeth),
+                      },
+                      {
+                        label: "Bottom Quick-Change Gear",
+                        value: displayValue(stage.setupAdjustments.gears.quickChangeBottomTeeth),
+                      },
+                      { label: "Final Drive Ratio", value: displayValue(gearRatio) },
+                      { label: "Gear Notes", value: displayValue(stage.setupAdjustments.gears.notes) },
+                    ]}
+                  />
+                </>
+              ) : null}
             </View>
           );
         })}

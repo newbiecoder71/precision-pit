@@ -12,6 +12,13 @@ import {
   createDefaultChecklistSections,
   RaceNightChecklistSection,
 } from "../data/raceNight";
+import {
+  buildDefaultVisibilityPreferences,
+  checklistPreferenceSections,
+  normalizeVisibilityPreferences,
+  setupPreferenceCategories,
+  type VisibilityPreferences,
+} from "../data/teamPreferences";
 import { findDirtOvalTrackByName } from "../data/dirtOvalTracks";
 import { getRaceCarTypeOptions } from "../data/racing";
 import { formatStoredDateValue, getDateSortValue } from "../utils/date";
@@ -23,6 +30,8 @@ const STORAGE_KEYS = {
   hasExistingLoginProfile: "hasExistingLoginProfile",
   authSnapshot: "authSnapshot",
   brandingPreferences: "brandingPreferences",
+  setupVisibilityPreferences: "setupVisibilityPreferences",
+  checklistVisibilityPreferences: "checklistVisibilityPreferences",
   chassisSetup: "chassisSetup",
   tireSetup: "tireSetup",
   suspensionSetup: "suspensionSetup",
@@ -122,11 +131,42 @@ export type GearSetup = {
 export type BrandingPreferences = {
   primaryColor: string;
   secondaryColor: string;
+  carNumberText: string;
   carNumberImageUri: string;
   profileBackgroundImageUri: string;
 };
 
+const defaultSetupVisibilityPreferences = buildDefaultVisibilityPreferences(setupPreferenceCategories);
+const defaultChecklistVisibilityPreferences = buildDefaultVisibilityPreferences(
+  checklistPreferenceSections,
+);
+
 export type TeamRole = "Owner" | "Driver" | "Crew Chief" | "Crew";
+
+export type TeamMemberPermissions = {
+  editTeamDetails: boolean;
+  editTeamBranding: boolean;
+  editSetupPreferences: boolean;
+  editChecklistPreferences: boolean;
+};
+
+export const defaultTeamMemberPermissions: TeamMemberPermissions = {
+  editTeamDetails: false,
+  editTeamBranding: false,
+  editSetupPreferences: false,
+  editChecklistPreferences: false,
+};
+
+export function normalizeTeamMemberPermissions(
+  value?: Partial<TeamMemberPermissions> | null,
+): TeamMemberPermissions {
+  return {
+    editTeamDetails: value?.editTeamDetails === true,
+    editTeamBranding: value?.editTeamBranding === true,
+    editSetupPreferences: value?.editSetupPreferences === true,
+    editChecklistPreferences: value?.editChecklistPreferences === true,
+  };
+}
 
 export type TeamMember = {
   id: string;
@@ -134,6 +174,7 @@ export type TeamMember = {
   email: string;
   name: string;
   role: TeamRole;
+  permissions: TeamMemberPermissions;
   status: "active";
 };
 
@@ -245,6 +286,8 @@ export type RaceNight = {
   eventId: string;
   eventTitle: string;
   trackName: string;
+  transponderNumber: string;
+  myRacePassEventUrl: string;
   eventDate: string;
   lastViewedStage?: RaceNightStageKey;
   racingType?: string;
@@ -296,6 +339,7 @@ export type TireInventoryItem = {
   position: string;
   circumference: string;
   pressure: string;
+  wheelOffset: string;
   notes: string;
   createdAt: string;
 };
@@ -394,6 +438,7 @@ const emptyRaceNights: RaceNight[] = [];
 const defaultBrandingPreferences: BrandingPreferences = {
   primaryColor: "#1780D4",
   secondaryColor: "#8ED4FF",
+  carNumberText: "",
   carNumberImageUri: "",
   profileBackgroundImageUri: "",
 };
@@ -951,6 +996,10 @@ function normalizeRaceNightRecord(raceNight: RaceNight): RaceNight {
 
   const nextRaceNight: RaceNight = {
     ...raceNight,
+    transponderNumber:
+      typeof raceNight.transponderNumber === "string" ? raceNight.transponderNumber : "",
+    myRacePassEventUrl:
+      typeof raceNight.myRacePassEventUrl === "string" ? raceNight.myRacePassEventUrl : "",
     racingType: normalizedVehicleSelections.trackType,
     raceCarType: normalizedVehicleSelections.racingType,
     carClass: normalizedVehicleSelections.carClass,
@@ -981,6 +1030,7 @@ type TeamStateSnapshot = Pick<
   | "teamName"
   | "userName"
   | "userEmail"
+  | "transponderNumber"
   | "currentTeamRole"
   | "driverName"
   | "crewChiefName"
@@ -993,6 +1043,8 @@ type TeamStateSnapshot = Pick<
   | "isTeamOwner"
   | "teamMembers"
   | "pendingInvites"
+  | "setupVisibilityPreferences"
+  | "checklistVisibilityPreferences"
 >;
 
 async function persistAuthSnapshot(snapshot: TeamStateSnapshot) {
@@ -1001,6 +1053,58 @@ async function persistAuthSnapshot(snapshot: TeamStateSnapshot) {
 
 async function clearAuthSnapshot() {
   await AsyncStorage.removeItem(STORAGE_KEYS.authSnapshot);
+}
+
+async function loadTeamMembersForTeam(teamId: string, ownerUserId: string) {
+  const membersQueryWithPermissions = supabase
+    .from("team_members")
+    .select("id, user_id, email, full_name, role, access_permissions, status")
+    .eq("team_id", teamId)
+    .eq("status", "active")
+    .returns<TeamMemberRow[]>();
+
+  const membersResponse = await membersQueryWithPermissions;
+
+  if (membersResponse.error) {
+    if (!isMissingTeamDefaultsColumnError(membersResponse.error.message)) {
+      throw membersResponse.error;
+    }
+
+    const legacyMembersResponse = await supabase
+      .from("team_members")
+      .select("id, user_id, email, full_name, role, status")
+      .eq("team_id", teamId)
+      .eq("status", "active")
+      .returns<TeamMemberRow[]>();
+
+    if (legacyMembersResponse.error) {
+      throw legacyMembersResponse.error;
+    }
+
+    return sortTeamMembers(
+      (legacyMembersResponse.data ?? []).map((member) => ({
+        id: member.id,
+        userId: member.user_id ?? undefined,
+        email: member.email,
+        name: member.full_name || member.email,
+        role: member.user_id === ownerUserId ? "Owner" : member.role,
+        permissions: normalizeTeamMemberPermissions(),
+        status: member.status,
+      })),
+    );
+  }
+
+  return sortTeamMembers(
+    (membersResponse.data ?? []).map((member) => ({
+      id: member.id,
+      userId: member.user_id ?? undefined,
+      email: member.email,
+      name: member.full_name || member.email,
+      role: member.user_id === ownerUserId ? "Owner" : member.role,
+      permissions: normalizeTeamMemberPermissions(member.access_permissions),
+      status: member.status,
+    })),
+  );
 }
 
 type AppState = {
@@ -1019,6 +1123,7 @@ type AppState = {
   teamName?: string;
   userName?: string;
   userEmail?: string;
+  transponderNumber?: string;
   currentTeamRole?: TeamRole;
   driverName?: string;
   crewChiefName?: string;
@@ -1040,6 +1145,8 @@ type AppState = {
   raceEvents: RaceEvent[];
   raceNights: RaceNight[];
   brandingPreferences: BrandingPreferences;
+  setupVisibilityPreferences: VisibilityPreferences;
+  checklistVisibilityPreferences: VisibilityPreferences;
   hydrate: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
   completeHomeTutorial: () => Promise<void>;
@@ -1073,14 +1180,24 @@ type AppState = {
     engineType?: string,
     fuelType?: string,
     carburetorType?: string,
+    transponderNumber?: string,
   ) => Promise<void>;
   saveBrandingPreferences: (input: Partial<BrandingPreferences>) => Promise<void>;
+  saveTeamDisplayPreferences: (input: {
+    setupVisibilityPreferences: VisibilityPreferences;
+    checklistVisibilityPreferences: VisibilityPreferences;
+  }) => Promise<void>;
   inviteMember: (input: {
       email: string;
       deliveryMethod: "email" | "text";
       role: TeamRole;
     }) => Promise<InviteMemberResult>;
   updateTeamMemberRole: (memberId: string, role: TeamRole) => Promise<void>;
+  updateTeamMemberPermissions: (
+    memberId: string,
+    permissions: TeamMemberPermissions,
+  ) => Promise<void>;
+  removeTeamMember: (memberId: string) => Promise<void>;
     deletePendingInvite: (inviteId: string) => Promise<void>;
     requestPasswordReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
@@ -1100,8 +1217,20 @@ type AppState = {
     position: string;
     circumference: string;
     pressure: string;
+    wheelOffset: string;
     notes: string;
   }) => Promise<void>;
+  updateTireInventoryItem: (
+    tireId: string,
+    input: {
+      label: string;
+      position: string;
+      circumference: string;
+      pressure: string;
+      wheelOffset: string;
+      notes: string;
+    },
+  ) => Promise<void>;
   deleteTireInventoryItem: (tireId: string) => Promise<void>;
   addGearInventoryItem: (input: {
     label: string;
@@ -1111,6 +1240,17 @@ type AppState = {
     quickChangeBottomTeeth: string;
     notes: string;
   }) => Promise<void>;
+  updateGearInventoryItem: (
+    gearId: string,
+    input: {
+      label: string;
+      ringTeeth: string;
+      pinionTeeth: string;
+      quickChangeTopTeeth: string;
+      quickChangeBottomTeeth: string;
+      notes: string;
+    },
+  ) => Promise<void>;
   deleteGearInventoryItem: (gearId: string) => Promise<void>;
   createRaceEvent: (input: { title: string; trackName: string; eventDate: string }) => Promise<void>;
   updateRaceEventTitle: (eventId: string, title: string) => Promise<void>;
@@ -1143,6 +1283,8 @@ type MembershipRow = {
     engine_type: string | null;
     fuel_type: string | null;
     carburetor_type: string | null;
+    setup_visibility_preferences: VisibilityPreferences | null;
+    checklist_visibility_preferences: VisibilityPreferences | null;
   } | null;
 };
 
@@ -1163,6 +1305,8 @@ type LegacyMembershipRow = {
     engine_type?: string | null;
     fuel_type?: string | null;
     carburetor_type?: string | null;
+    setup_visibility_preferences?: VisibilityPreferences | null;
+    checklist_visibility_preferences?: VisibilityPreferences | null;
   } | null;
 };
 
@@ -1172,6 +1316,7 @@ type TeamMemberRow = {
   email: string;
   full_name: string | null;
   role: TeamRole;
+  access_permissions?: TeamMemberPermissions | null;
   status: "active";
 };
 
@@ -1350,6 +1495,9 @@ function isMissingTeamDefaultsColumnError(message?: string) {
     message.includes("engine_type") ||
     message.includes("fuel_type") ||
     message.includes("carburetor_type") ||
+    message.includes("setup_visibility_preferences") ||
+    message.includes("checklist_visibility_preferences") ||
+    message.includes("access_permissions") ||
     message.includes("Could not find the") ||
     message.includes("column")
   );
@@ -1667,6 +1815,7 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
       teamName: undefined,
       userName: undefined,
       userEmail: undefined,
+      transponderNumber: undefined,
       currentTeamRole: undefined,
       driverName: undefined,
       crewChiefName: undefined,
@@ -1679,6 +1828,8 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
       isTeamOwner: false,
       teamMembers: [] as TeamMember[],
       pendingInvites: [] as PendingInvite[],
+      setupVisibilityPreferences: defaultSetupVisibilityPreferences,
+      checklistVisibilityPreferences: defaultChecklistVisibilityPreferences,
     };
   }
 
@@ -1686,7 +1837,7 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
 
   let membershipQuery = supabase
     .from("team_members")
-    .select("team_id, role, full_name, email, teams(id, name, owner_user_id, driver_name, crew_chief_name, racing_type, race_car_type, car_class, engine_type, fuel_type, carburetor_type)")
+    .select("team_id, role, full_name, email, teams(id, name, owner_user_id, driver_name, crew_chief_name, racing_type, race_car_type, car_class, engine_type, fuel_type, carburetor_type, transponder_number, setup_visibility_preferences, checklist_visibility_preferences)")
     .eq("user_id", user.id)
     .eq("status", "active")
     .limit(1);
@@ -1740,6 +1891,10 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
           ? user.user_metadata.full_name
           : undefined),
       userEmail: user.email,
+      transponderNumber:
+        typeof user.user_metadata?.transponder_number === "string"
+          ? user.user_metadata.transponder_number
+          : undefined,
       currentTeamRole: membershipData?.role,
       driverName: undefined,
       crewChiefName: undefined,
@@ -1752,6 +1907,8 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
       isTeamOwner: false,
       teamMembers: [] as TeamMember[],
       pendingInvites: [] as PendingInvite[],
+      setupVisibilityPreferences: defaultSetupVisibilityPreferences,
+      checklistVisibilityPreferences: defaultChecklistVisibilityPreferences,
     };
   }
 
@@ -1779,13 +1936,8 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
     }
   }
 
-  const [membersResponse, invitesResponse] = await Promise.all([
-    supabase
-      .from("team_members")
-      .select("id, user_id, email, full_name, role, status")
-      .eq("team_id", teamId)
-      .eq("status", "active")
-      .returns<TeamMemberRow[]>(),
+  const [teamMembers, invitesResponse] = await Promise.all([
+    loadTeamMembersForTeam(teamId, ownerUserId),
     supabase
       .from("invites")
       .select("id, email, role, created_at, status")
@@ -1794,10 +1946,6 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
       .order("created_at", { ascending: false })
       .returns<InviteRow[]>(),
   ]);
-
-  if (membersResponse.error) {
-    throw membersResponse.error;
-  }
 
   if (invitesResponse.error) {
     throw invitesResponse.error;
@@ -1817,6 +1965,14 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
       membershipData.full_name ||
       (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : undefined),
     userEmail: user.email,
+    transponderNumber:
+      "transponder_number" in membershipTeam &&
+      typeof membershipTeam.transponder_number === "string" &&
+      membershipTeam.transponder_number.trim().length > 0
+        ? membershipTeam.transponder_number
+        : typeof user.user_metadata?.transponder_number === "string"
+          ? user.user_metadata.transponder_number
+          : undefined,
     currentTeamRole: ownerUserId === user.id ? "Owner" : membershipData.role,
     driverName:
       "driver_name" in membershipTeam ? membershipTeam.driver_name || undefined : undefined,
@@ -1829,17 +1985,20 @@ async function refreshTeamDataForCurrentUser(preferredTeamId?: string): Promise<
     fuelType: "fuel_type" in membershipTeam ? membershipTeam.fuel_type || undefined : undefined,
     carburetorType:
       "carburetor_type" in membershipTeam ? membershipTeam.carburetor_type || undefined : undefined,
-    isTeamOwner: ownerUserId === user.id,
-    teamMembers: sortTeamMembers(
-      (membersResponse.data ?? []).map((member) => ({
-        id: member.id,
-        userId: member.user_id ?? undefined,
-        email: member.email,
-        name: member.full_name || member.email,
-        role: member.user_id === ownerUserId ? "Owner" : member.role,
-        status: member.status,
-      })),
+    setupVisibilityPreferences: normalizeVisibilityPreferences(
+      setupPreferenceCategories,
+      "setup_visibility_preferences" in membershipTeam
+        ? membershipTeam.setup_visibility_preferences
+        : undefined,
     ),
+    checklistVisibilityPreferences: normalizeVisibilityPreferences(
+      checklistPreferenceSections,
+      "checklist_visibility_preferences" in membershipTeam
+        ? membershipTeam.checklist_visibility_preferences
+        : undefined,
+    ),
+    isTeamOwner: ownerUserId === user.id,
+    teamMembers,
     pendingInvites: (invitesResponse.data ?? []).map((invite) => ({
       id: invite.id,
       email: invite.email,
@@ -1866,6 +2025,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   teamName: undefined,
   userName: undefined,
   userEmail: undefined,
+  transponderNumber: undefined,
   currentTeamRole: undefined,
   driverName: undefined,
   crewChiefName: undefined,
@@ -1882,140 +2042,168 @@ export const useAppStore = create<AppState>((set, get) => ({
   tireSetup: emptyTireSetup,
   suspensionSetup: emptySuspensionSetup,
   brandingPreferences: defaultBrandingPreferences,
+  setupVisibilityPreferences: defaultSetupVisibilityPreferences,
+  checklistVisibilityPreferences: defaultChecklistVisibilityPreferences,
   tireInventory: emptyTireInventory,
   gearInventory: emptyGearInventory,
   savedTracks: emptySavedTracks,
   raceEvents: emptyRaceEvents,
   raceNights: emptyRaceNights,
     hydrate: async () => {
-      const hasSeenOnboarding =
-        (await AsyncStorage.getItem(STORAGE_KEYS.hasSeenOnboarding)) === "true";
-      const hasSeenHomeTutorial =
-        (await AsyncStorage.getItem(STORAGE_KEYS.hasSeenHomeTutorial)) === "true";
-      const hasExistingLoginProfile =
-        (await AsyncStorage.getItem(STORAGE_KEYS.hasExistingLoginProfile)) === "true";
-    const chassisSetup = await loadChassisSetup();
-    const tireSetup = await loadTireSetup();
-    const suspensionSetup = await loadSuspensionSetup();
-    const tireInventory = await loadStoredJson<TireInventoryItem[]>(
-      STORAGE_KEYS.tireInventory,
-      emptyTireInventory,
-    );
-    const brandingPreferences = await loadStoredJson<BrandingPreferences>(
-      STORAGE_KEYS.brandingPreferences,
-      defaultBrandingPreferences,
-    );
-    const gearInventory = await loadStoredJson<GearInventoryItem[]>(
-      STORAGE_KEYS.gearInventory,
-      emptyGearInventory,
-    );
-    const savedTracks = await loadStoredJson<SavedTrack[]>(STORAGE_KEYS.savedTracks, emptySavedTracks);
-    const raceEvents = await loadStoredJson<RaceEvent[]>(STORAGE_KEYS.raceEvents, emptyRaceEvents);
-    const storedRaceNights = await loadStoredJson<RaceNight[]>(STORAGE_KEYS.raceNights, emptyRaceNights);
-    const raceNights = storedRaceNights.map(normalizeRaceNightRecord);
-    const nextState: TeamStateSnapshot = {
-      userId: undefined,
-      teamId: undefined,
-      teamName: undefined,
-      userName: undefined,
-      userEmail: undefined,
-      currentTeamRole: undefined,
-      driverName: undefined,
-      crewChiefName: undefined,
-      racingType: undefined,
-      raceCarType: undefined,
-      carClass: undefined,
-      engineType: undefined,
-      fuelType: undefined,
-      carburetorType: undefined,
-      isTeamOwner: false,
-      teamMembers: [] as TeamMember[],
-      pendingInvites: [] as PendingInvite[],
-    };
-    const cachedAuthSnapshot = await loadStoredJson<TeamStateSnapshot>(
-      STORAGE_KEYS.authSnapshot,
-      nextState,
-    );
-    let hasStoredSupabaseSession = false;
-
-    if (isSupabaseConfigured) {
       try {
-        const { data } = await supabase.auth.getSession();
-        hasStoredSupabaseSession = !!data.session?.user;
-      } catch (error) {
-        console.warn("Unable to read saved Supabase session during startup.", error);
-      }
-    }
+        const hasSeenOnboarding =
+          (await AsyncStorage.getItem(STORAGE_KEYS.hasSeenOnboarding)) === "true";
+        const hasSeenHomeTutorial =
+          (await AsyncStorage.getItem(STORAGE_KEYS.hasSeenHomeTutorial)) === "true";
+        const hasExistingLoginProfile =
+          (await AsyncStorage.getItem(STORAGE_KEYS.hasExistingLoginProfile)) === "true";
+        const chassisSetup = await loadChassisSetup();
+        const tireSetup = await loadTireSetup();
+        const suspensionSetup = await loadSuspensionSetup();
+        const tireInventory = await loadStoredJson<TireInventoryItem[]>(
+          STORAGE_KEYS.tireInventory,
+          emptyTireInventory,
+        );
+        const brandingPreferences = await loadStoredJson<BrandingPreferences>(
+          STORAGE_KEYS.brandingPreferences,
+          defaultBrandingPreferences,
+        );
+        const setupVisibilityPreferences = normalizeVisibilityPreferences(
+          setupPreferenceCategories,
+          await loadStoredJson<VisibilityPreferences>(
+            STORAGE_KEYS.setupVisibilityPreferences,
+            defaultSetupVisibilityPreferences,
+          ),
+        );
+        const checklistVisibilityPreferences = normalizeVisibilityPreferences(
+          checklistPreferenceSections,
+          await loadStoredJson<VisibilityPreferences>(
+            STORAGE_KEYS.checklistVisibilityPreferences,
+            defaultChecklistVisibilityPreferences,
+          ),
+        );
+        const gearInventory = await loadStoredJson<GearInventoryItem[]>(
+          STORAGE_KEYS.gearInventory,
+          emptyGearInventory,
+        );
+        const savedTracks = await loadStoredJson<SavedTrack[]>(
+          STORAGE_KEYS.savedTracks,
+          emptySavedTracks,
+        );
+        const raceEvents = await loadStoredJson<RaceEvent[]>(STORAGE_KEYS.raceEvents, emptyRaceEvents);
+        const storedRaceNights = await loadStoredJson<RaceNight[]>(
+          STORAGE_KEYS.raceNights,
+          emptyRaceNights,
+        );
+        const raceNights = storedRaceNights.map(normalizeRaceNightRecord);
+        const nextState: TeamStateSnapshot = {
+          userId: undefined,
+          teamId: undefined,
+          teamName: undefined,
+          userName: undefined,
+          userEmail: undefined,
+          transponderNumber: undefined,
+          currentTeamRole: undefined,
+          driverName: undefined,
+          crewChiefName: undefined,
+          racingType: undefined,
+          raceCarType: undefined,
+          carClass: undefined,
+          engineType: undefined,
+          fuelType: undefined,
+          carburetorType: undefined,
+          isTeamOwner: false,
+          teamMembers: [] as TeamMember[],
+          pendingInvites: [] as PendingInvite[],
+          setupVisibilityPreferences,
+          checklistVisibilityPreferences,
+        };
+        const cachedAuthSnapshot = await loadStoredJson<TeamStateSnapshot>(
+          STORAGE_KEYS.authSnapshot,
+          nextState,
+        );
 
-    set({
-        isHydrated: true,
-        hasSeenOnboarding,
-        hasSeenHomeTutorial,
-        hasExistingLoginProfile,
-        isPasswordRecovery: false,
-        inviteLinkEmail: undefined,
-        inviteLinkToken: undefined,
-        inviteLinkTeamName: undefined,
-      chassisSetup,
-      tireSetup,
-      suspensionSetup,
-      brandingPreferences: {
-        ...defaultBrandingPreferences,
-        ...brandingPreferences,
-      },
-      tireInventory,
-      gearInventory,
-      savedTracks,
-      raceEvents,
-      raceNights,
-      ...(hasStoredSupabaseSession ? cachedAuthSnapshot : nextState),
-    });
+        set({
+          isHydrated: true,
+          hasSeenOnboarding,
+          hasSeenHomeTutorial,
+          hasExistingLoginProfile,
+          isPasswordRecovery: false,
+          inviteLinkEmail: undefined,
+          inviteLinkToken: undefined,
+          inviteLinkTeamName: undefined,
+          chassisSetup,
+          tireSetup,
+          suspensionSetup,
+          brandingPreferences: {
+            ...defaultBrandingPreferences,
+            ...brandingPreferences,
+          },
+          setupVisibilityPreferences,
+          checklistVisibilityPreferences,
+          tireInventory,
+          gearInventory,
+          savedTracks,
+          raceEvents,
+          raceNights,
+          ...cachedAuthSnapshot,
+        });
 
-    if (!isSupabaseConfigured) {
-      return;
-    }
-
-    void (async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-
-        if (!data.session?.user) {
-          await clearAuthSnapshot();
-          stopRaceNightSyncLoop();
+        if (!isSupabaseConfigured) {
           return;
         }
 
-        const remoteState = await refreshTeamDataForCurrentUser();
-        let syncedRaceEvents = raceEvents;
-        let syncedRaceNights = raceNights;
-        const previousTeamId = hasStoredSupabaseSession ? cachedAuthSnapshot.teamId : undefined;
-        const isSameTeam = !!remoteState.teamId && remoteState.teamId === previousTeamId;
+        void (async () => {
+          try {
+            const { data } = await supabase.auth.getSession();
 
-        if (remoteState.teamId) {
-          syncedRaceEvents = isSameTeam
-            ? await resolveRaceEventsForTeam(remoteState.teamId, raceEvents)
-            : await loadFreshRaceEventsForTeam(remoteState.teamId);
-          syncedRaceNights = isSameTeam
-            ? await resolveRaceNightsForTeam(remoteState.teamId, raceNights)
-            : await loadFreshRaceNightsForTeam(remoteState.teamId);
-          startRaceNightSyncLoop(remoteState.teamId);
-        } else {
-          stopRaceNightSyncLoop();
-        }
+            if (!data.session?.user) {
+              await clearAuthSnapshot();
+              stopRaceNightSyncLoop();
+              set(nextState);
+              return;
+            }
 
-        await AsyncStorage.setItem(STORAGE_KEYS.raceEvents, JSON.stringify(syncedRaceEvents));
-        await persistRaceNightsLocally(syncedRaceNights);
-        await persistAuthSnapshot(remoteState);
-        set({
-          ...remoteState,
-          raceEvents: syncedRaceEvents,
-          raceNights: syncedRaceNights,
-        });
+            const remoteState = await refreshTeamDataForCurrentUser();
+            let syncedRaceEvents = raceEvents;
+            let syncedRaceNights = raceNights;
+            const previousTeamId = cachedAuthSnapshot.teamId;
+            const isSameTeam = !!remoteState.teamId && remoteState.teamId === previousTeamId;
+
+            if (remoteState.teamId) {
+              syncedRaceEvents = isSameTeam
+                ? await resolveRaceEventsForTeam(remoteState.teamId, raceEvents)
+                : await loadFreshRaceEventsForTeam(remoteState.teamId);
+              syncedRaceNights = isSameTeam
+                ? await resolveRaceNightsForTeam(remoteState.teamId, raceNights)
+                : await loadFreshRaceNightsForTeam(remoteState.teamId);
+              startRaceNightSyncLoop(remoteState.teamId);
+            } else {
+              stopRaceNightSyncLoop();
+            }
+
+            await AsyncStorage.setItem(STORAGE_KEYS.raceEvents, JSON.stringify(syncedRaceEvents));
+            await persistRaceNightsLocally(syncedRaceNights);
+            await persistAuthSnapshot(remoteState);
+            set({
+              ...remoteState,
+              raceEvents: syncedRaceEvents,
+              raceNights: syncedRaceNights,
+            });
+          } catch (error) {
+            console.warn(
+              "Hydration hit a remote sync issue. Continuing with local startup state.",
+              error,
+            );
+          }
+        })();
       } catch (error) {
-        console.warn("Hydration hit a remote sync issue. Continuing with local startup state.", error);
+        console.error("Hydration failed before app launch could finish.", error);
+        set({
+          isHydrated: true,
+        });
       }
-    })();
-  },
+    },
   completeOnboarding: async () => {
     await persistOnboardingFlag(true);
     set({ hasSeenOnboarding: true });
@@ -2338,6 +2526,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     engineType,
     fuelType,
     carburetorType,
+    transponderNumber,
   ) => {
     requireSupabase();
 
@@ -2356,10 +2545,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextEngineType = engineType?.trim() || undefined;
     const nextFuelType = fuelType?.trim() || undefined;
     const nextCarburetorType = carburetorType?.trim() || undefined;
+    const nextTransponderNumber = transponderNumber?.trim() || undefined;
     const allowedRaceCarTypes = getRaceCarTypeOptions(nextRaceCarType);
     const resolvedCarClass =
       nextCarClass && allowedRaceCarTypes.includes(nextCarClass) ? nextCarClass : undefined;
-    const { teamId, isTeamOwner } = get();
+    const { teamId, isTeamOwner, teamMembers, userId } = get();
+    const currentMemberPermissions =
+      teamMembers.find((member) => member.userId === userId)?.permissions ??
+      defaultTeamMemberPermissions;
+    const canEditTeamDetails = isTeamOwner || currentMemberPermissions.editTeamDetails;
 
     if (!user?.id) {
       throw new Error("No authenticated user found.");
@@ -2374,15 +2568,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (memberUpdateError) {
         throw memberUpdateError;
       }
-
-      await supabase.auth.updateUser({
-        data: {
-          full_name: nextUserName,
-        },
-      });
     }
 
-    if (teamId && isTeamOwner) {
+    const authUpdatePayload: Record<string, string | null> = {
+      transponder_number: nextTransponderNumber ?? null,
+    };
+
+    if (nextUserName) {
+      authUpdatePayload.full_name = nextUserName;
+    }
+
+    await supabase.auth.updateUser({
+      data: {
+        ...authUpdatePayload,
+      },
+    });
+
+    if (teamId && canEditTeamDetails) {
       const { error: teamUpdateError } = await supabase
         .from("teams")
         .update({
@@ -2394,13 +2596,17 @@ export const useAppStore = create<AppState>((set, get) => ({
           engine_type: nextEngineType ?? null,
           fuel_type: nextFuelType ?? null,
           carburetor_type: nextCarburetorType ?? null,
+          transponder_number: nextTransponderNumber ?? null,
         })
         .eq("id", teamId);
 
       if (teamUpdateError) {
-        if (isMissingTeamDefaultsColumnError(teamUpdateError.message)) {
+        if (
+          isMissingTeamDefaultsColumnError(teamUpdateError.message) ||
+          teamUpdateError.message.includes("transponder_number")
+        ) {
           throw new Error(
-            "The team baseline fields are not in Supabase yet. Run the latest SQL update to add the track type, racing type, car class, engine, fuel, and carburetor columns to the teams table, then try Save Changes again.",
+            "The latest team details fields are not in Supabase yet. Run the latest SQL update to add the team defaults and transponder columns to the teams table, then try Save Changes again.",
           );
         }
         throw teamUpdateError;
@@ -2425,7 +2631,72 @@ export const useAppStore = create<AppState>((set, get) => ({
       brandingPreferences: nextPreferences,
     });
   },
-    inviteMember: async ({ email, deliveryMethod, role }) => {
+  saveTeamDisplayPreferences: async ({
+    setupVisibilityPreferences,
+    checklistVisibilityPreferences,
+  }) => {
+    const nextSetupVisibilityPreferences = normalizeVisibilityPreferences(
+      setupPreferenceCategories,
+      setupVisibilityPreferences,
+    );
+    const nextChecklistVisibilityPreferences = normalizeVisibilityPreferences(
+      checklistPreferenceSections,
+      checklistVisibilityPreferences,
+    );
+
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.setupVisibilityPreferences,
+      JSON.stringify(nextSetupVisibilityPreferences),
+    );
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.checklistVisibilityPreferences,
+      JSON.stringify(nextChecklistVisibilityPreferences),
+    );
+
+    set({
+      setupVisibilityPreferences: nextSetupVisibilityPreferences,
+      checklistVisibilityPreferences: nextChecklistVisibilityPreferences,
+    });
+
+    const { teamId, isTeamOwner } = get();
+
+    if (teamId && isTeamOwner) {
+      const { error } = await supabase
+        .from("teams")
+        .update({
+          setup_visibility_preferences: nextSetupVisibilityPreferences,
+          checklist_visibility_preferences: nextChecklistVisibilityPreferences,
+        })
+        .eq("id", teamId);
+
+      if (error && !isMissingTeamDefaultsColumnError(error.message)) {
+        throw error;
+      }
+    }
+
+    await persistAuthSnapshot({
+      userId: get().userId,
+      teamId: get().teamId,
+      teamName: get().teamName,
+      userName: get().userName,
+      userEmail: get().userEmail,
+      currentTeamRole: get().currentTeamRole,
+      driverName: get().driverName,
+      crewChiefName: get().crewChiefName,
+      racingType: get().racingType,
+      raceCarType: get().raceCarType,
+      carClass: get().carClass,
+      engineType: get().engineType,
+      fuelType: get().fuelType,
+      carburetorType: get().carburetorType,
+      isTeamOwner: get().isTeamOwner,
+      teamMembers: get().teamMembers,
+      pendingInvites: get().pendingInvites,
+      setupVisibilityPreferences: nextSetupVisibilityPreferences,
+      checklistVisibilityPreferences: nextChecklistVisibilityPreferences,
+    });
+  },
+  inviteMember: async ({ email, deliveryMethod, role }) => {
         requireSupabase();
 
         const trimmedEmail = email.trim().toLowerCase();
@@ -2630,6 +2901,86 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       await get().refreshTeamData();
     },
+    updateTeamMemberPermissions: async (memberId, permissions) => {
+      requireSupabase();
+
+      const trimmedMemberId = memberId.trim();
+      const { teamId, isTeamOwner, teamMembers } = get();
+
+      if (!trimmedMemberId || !teamId) {
+        throw new Error("Missing team member details.");
+      }
+
+      if (!isTeamOwner) {
+        throw new Error("Only the team owner can change team-member access.");
+      }
+
+      const targetMember = teamMembers.find((member) => member.id === trimmedMemberId);
+      if (!targetMember) {
+        throw new Error("Team member not found.");
+      }
+
+      if (targetMember.role !== "Driver" && targetMember.role !== "Crew Chief") {
+        throw new Error("Custom access can only be assigned to Driver or Crew Chief roles.");
+      }
+
+      const nextPermissions = normalizeTeamMemberPermissions(permissions);
+
+      const { error } = await supabase
+        .from("team_members")
+        .update({
+          access_permissions: nextPermissions,
+        })
+        .eq("id", trimmedMemberId)
+        .eq("team_id", teamId);
+
+      if (error) {
+        if (isMissingTeamDefaultsColumnError(error.message)) {
+          throw new Error(
+            "The team-member access_permissions field is not in Supabase yet. Run the latest SQL update for team member access, then try saving these accesses again.",
+          );
+        }
+
+        throw error;
+      }
+
+      await get().refreshTeamData();
+    },
+    removeTeamMember: async (memberId) => {
+      requireSupabase();
+
+      const trimmedMemberId = memberId.trim();
+      const { teamId, isTeamOwner, teamMembers } = get();
+
+      if (!trimmedMemberId || !teamId) {
+        throw new Error("Missing team member details.");
+      }
+
+      if (!isTeamOwner) {
+        throw new Error("Only the team owner can remove team members.");
+      }
+
+      const targetMember = teamMembers.find((member) => member.id === trimmedMemberId);
+      if (!targetMember) {
+        throw new Error("Team member not found.");
+      }
+
+      if (targetMember.role === "Owner") {
+        throw new Error("Transfer ownership before removing the current owner.");
+      }
+
+      const { error } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("id", trimmedMemberId)
+        .eq("team_id", teamId);
+
+      if (error) {
+        throw error;
+      }
+
+      await get().refreshTeamData();
+    },
     deletePendingInvite: async (inviteId) => {
       requireSupabase();
 
@@ -2771,15 +3122,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       savedTracks: nextSavedTracks,
     });
   },
-  addTireInventoryItem: async ({ label, position, circumference, pressure, notes }) => {
+  addTireInventoryItem: async ({ label, position, circumference, pressure, wheelOffset, notes }) => {
     const trimmedLabel = label.trim();
     const trimmedPosition = position.trim();
     const trimmedCircumference = circumference.trim();
     const trimmedPressure = pressure.trim();
+    const trimmedWheelOffset = wheelOffset.trim();
     const trimmedNotes = notes.trim();
 
-    if (!trimmedLabel || !trimmedPosition || !trimmedCircumference || !trimmedPressure) {
-      throw new Error("Enter a label, tire position, circumference, and pressure.");
+    if (!trimmedLabel || !trimmedPosition || !trimmedCircumference || !trimmedPressure || !trimmedWheelOffset) {
+      throw new Error("Enter a label, tire position, circumference, pressure, and wheel offset.");
     }
 
     const circumferenceValue = Number.parseFloat(trimmedCircumference);
@@ -2800,11 +3152,58 @@ export const useAppStore = create<AppState>((set, get) => ({
       position: trimmedPosition,
       circumference: trimmedCircumference,
       pressure: trimmedPressure,
+      wheelOffset: trimmedWheelOffset,
       notes: trimmedNotes,
       createdAt: new Date().toISOString(),
     };
 
     const nextTireInventory = [nextItem, ...get().tireInventory];
+    await AsyncStorage.setItem(STORAGE_KEYS.tireInventory, JSON.stringify(nextTireInventory));
+    set({
+      tireInventory: nextTireInventory,
+    });
+  },
+  updateTireInventoryItem: async (
+    tireId,
+    { label, position, circumference, pressure, wheelOffset, notes },
+  ) => {
+    const trimmedLabel = label.trim();
+    const trimmedPosition = position.trim().toUpperCase();
+    const trimmedCircumference = circumference.trim();
+    const trimmedPressure = pressure.trim();
+    const trimmedWheelOffset = normalizeFractionMeasurementInput(wheelOffset.trim());
+    const trimmedNotes = notes.trim();
+
+    if (!trimmedLabel || !trimmedPosition || !trimmedCircumference || !trimmedPressure) {
+      throw new Error("Enter a tire label, position, circumference, and pressure.");
+    }
+
+    const circumferenceValue = Number.parseFloat(trimmedCircumference);
+    const pressureValue = Number.parseFloat(trimmedPressure);
+
+    if (
+      Number.isNaN(circumferenceValue) ||
+      circumferenceValue <= 0 ||
+      Number.isNaN(pressureValue) ||
+      pressureValue < 0
+    ) {
+      throw new Error("Tire circumference and pressure must be valid numbers.");
+    }
+
+    const nextTireInventory = get().tireInventory.map((item) =>
+      item.id === tireId
+        ? {
+            ...item,
+            label: trimmedLabel,
+            position: trimmedPosition,
+            circumference: trimmedCircumference,
+            pressure: trimmedPressure,
+            wheelOffset: trimmedWheelOffset,
+            notes: trimmedNotes,
+          }
+        : item,
+    );
+
     await AsyncStorage.setItem(STORAGE_KEYS.tireInventory, JSON.stringify(nextTireInventory));
     set({
       tireInventory: nextTireInventory,
@@ -2873,6 +3272,65 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
 
     const nextGearInventory = [nextItem, ...get().gearInventory];
+    await AsyncStorage.setItem(STORAGE_KEYS.gearInventory, JSON.stringify(nextGearInventory));
+    set({
+      gearInventory: nextGearInventory,
+    });
+  },
+  updateGearInventoryItem: async (
+    gearId,
+    { label, ringTeeth, pinionTeeth, quickChangeTopTeeth, quickChangeBottomTeeth, notes },
+  ) => {
+    const trimmedLabel = label.trim();
+    const trimmedRingTeeth = ringTeeth.trim();
+    const trimmedPinionTeeth = pinionTeeth.trim();
+    const trimmedQuickChangeTopTeeth = quickChangeTopTeeth.trim();
+    const trimmedQuickChangeBottomTeeth = quickChangeBottomTeeth.trim();
+    const trimmedNotes = notes.trim();
+
+    if (
+      !trimmedLabel ||
+      !trimmedRingTeeth ||
+      !trimmedPinionTeeth ||
+      !trimmedQuickChangeTopTeeth ||
+      !trimmedQuickChangeBottomTeeth
+    ) {
+      throw new Error(
+        "Enter a label, ring gear teeth, pinion gear teeth, and both quick-change gears.",
+      );
+    }
+
+    const ringValue = Number.parseFloat(trimmedRingTeeth);
+    const pinionValue = Number.parseFloat(trimmedPinionTeeth);
+    const quickChangeTopValue = Number.parseFloat(trimmedQuickChangeTopTeeth);
+    const quickChangeBottomValue = Number.parseFloat(trimmedQuickChangeBottomTeeth);
+
+    if (
+      Number.isNaN(ringValue) ||
+      Number.isNaN(pinionValue) ||
+      pinionValue <= 0 ||
+      Number.isNaN(quickChangeTopValue) ||
+      Number.isNaN(quickChangeBottomValue) ||
+      quickChangeBottomValue <= 0
+    ) {
+      throw new Error("Gear teeth values must be valid numbers.");
+    }
+
+    const nextGearInventory = get().gearInventory.map((item) =>
+      item.id === gearId
+        ? {
+            ...item,
+            label: trimmedLabel,
+            ringTeeth: trimmedRingTeeth,
+            pinionTeeth: trimmedPinionTeeth,
+            quickChangeTopTeeth: trimmedQuickChangeTopTeeth,
+            quickChangeBottomTeeth: trimmedQuickChangeBottomTeeth,
+            ratio: ((ringValue / pinionValue) * (quickChangeTopValue / quickChangeBottomValue)).toFixed(3),
+            notes: trimmedNotes,
+          }
+        : item,
+    );
+
     await AsyncStorage.setItem(STORAGE_KEYS.gearInventory, JSON.stringify(nextGearInventory));
     set({
       gearInventory: nextGearInventory,
@@ -3133,6 +3591,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       eventId: event.id,
       eventTitle: event.title,
       trackName: event.trackName,
+      transponderNumber: get().transponderNumber ?? "",
+      myRacePassEventUrl: "",
       eventDate: event.eventDate,
       lastViewedStage: "hotLaps",
       racingType: get().racingType,
@@ -3350,6 +3810,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       teamName: undefined,
       userName: undefined,
       userEmail: undefined,
+      transponderNumber: undefined,
       driverName: undefined,
       crewChiefName: undefined,
       racingType: undefined,

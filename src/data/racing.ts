@@ -4,7 +4,6 @@ export const trackTypeOptions = [
   "Asphalt Road Course",
   "Dirt Road Course",
   "Drag Racing",
-  "Karting",
 ] as const;
 
 export type TrackType = (typeof trackTypeOptions)[number];
@@ -22,6 +21,7 @@ export const racingTypeOptionsByTrackType: Record<TrackType, string[]> = {
     "Midget",
     "Sport Mod",
     "Factory Stock",
+    "Karting",
   ],
   "Asphalt Oval": [
     "Street Stock",
@@ -31,16 +31,17 @@ export const racingTypeOptionsByTrackType: Record<TrackType, string[]> = {
     "Modified",
     "Late Model",
     "Bandolero",
+    "Karting",
   ],
   "Asphalt Road Course": [
     "Touring Car",
     "GT",
     "Prototype",
     "Club Racing Sedan",
+    "Karting",
   ],
   "Dirt Road Course": ["Rally Car", "Buggy", "UTV", "Off-Road Truck"],
   "Drag Racing": ["Bracket Car", "Super Comp", "Top Dragster", "Top Sportsman", "Pro Mod"],
-  Karting: ["Wing Kart", "Flat Kart", "Sprint Kart", "Shifter Kart", "Kid Kart", "LO206"],
 };
 
 export const carClassOptionsByRacingType: Record<string, string[]> = {
@@ -84,6 +85,7 @@ export const carClassOptionsByRacingType: Record<string, string[]> = {
   "Top Dragster": ["Top Dragster"],
   "Top Sportsman": ["Top Sportsman"],
   "Pro Mod": ["Pro Mod"],
+  Karting: ["Wing Kart", "Flat Kart", "Sprint Kart", "Shifter Kart", "Kid Kart", "LO206"],
   "Wing Kart": ["Wing Kart"],
   "Flat Kart": ["Flat Kart"],
   "Sprint Kart": ["Sprint Kart"],
@@ -285,34 +287,40 @@ const genericSetupSectionsByRacingType: Partial<Record<string, SetupSection[]>> 
     { title: "Run Notes", items: ["Track temp", "60-foot", "ET / MPH", "Lane prep", "Driver notes"] },
   ],
   "Wing Kart": [
-    { title: "Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
+    { title: "Kart Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
     { title: "Tires", items: ["Cold pressures", "Hot pressures", "Compound", "Stagger"] },
-    { title: "Track Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
+    { title: "Gears", items: ["Rear axle sprocket teeth", "Clutch sprocket teeth", "Gear ratio"] },
+    { title: "Track & Driver Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
   ],
   "Flat Kart": [
-    { title: "Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
+    { title: "Kart Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
     { title: "Tires", items: ["Cold pressures", "Hot pressures", "Compound", "Stagger"] },
-    { title: "Track Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
+    { title: "Gears", items: ["Rear axle sprocket teeth", "Clutch sprocket teeth", "Gear ratio"] },
+    { title: "Track & Driver Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
   ],
   "Sprint Kart": [
-    { title: "Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
+    { title: "Kart Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
     { title: "Tires", items: ["Cold pressures", "Hot pressures", "Compound", "Stagger"] },
-    { title: "Track Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
+    { title: "Gears", items: ["Rear axle sprocket teeth", "Clutch sprocket teeth", "Gear ratio"] },
+    { title: "Track & Driver Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
   ],
   "Shifter Kart": [
-    { title: "Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
+    { title: "Kart Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
     { title: "Tires", items: ["Cold pressures", "Hot pressures", "Compound", "Stagger"] },
-    { title: "Track Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
+    { title: "Gears", items: ["Rear axle sprocket teeth", "Clutch sprocket teeth", "Gear ratio"] },
+    { title: "Track & Driver Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
   ],
   "Kid Kart": [
-    { title: "Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
+    { title: "Kart Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
     { title: "Tires", items: ["Cold pressures", "Hot pressures", "Compound", "Stagger"] },
-    { title: "Track Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
+    { title: "Gears", items: ["Rear axle sprocket teeth", "Clutch sprocket teeth", "Gear ratio"] },
+    { title: "Track & Driver Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
   ],
   LO206: [
-    { title: "Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
+    { title: "Kart Chassis", items: ["Front width", "Rear width", "Seat position", "Torsion bars"] },
     { title: "Tires", items: ["Cold pressures", "Hot pressures", "Compound", "Stagger"] },
-    { title: "Track Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
+    { title: "Gears", items: ["Rear axle sprocket teeth", "Clutch sprocket teeth", "Gear ratio"] },
+    { title: "Track & Driver Notes", items: ["Grip level", "Rubber", "Driver comments", "Lap times"] },
   ],
 };
 
