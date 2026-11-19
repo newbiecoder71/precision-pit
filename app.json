@@ -1,13 +1,11 @@
 {
   "expo": {
     "name": "Precision Pit",
+    "version": "1.1.0",
     "slug": "precision-pit",
     "scheme": "precisionpit",
     "orientation": "default",
     "icon": "./assets/logo/app-icon1-lowered.png",
-    "splash": {
-      "backgroundColor": "#0D1117"
-    },
     "platforms": [
       "ios",
       "android",
@@ -16,9 +14,6 @@
     "ios": {
       "bundleIdentifier": "com.newbiecoder71.precisionpit",
       "supportsTablet": true,
-      "splash": {
-        "backgroundColor": "#0D1117"
-      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -26,9 +21,6 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo/app-icon1-lowered.png",
-        "backgroundColor": "#0D1117"
-      },
-      "splash": {
         "backgroundColor": "#0D1117"
       },
       "package": "com.newbiecoder71.precisionpit"
@@ -48,7 +40,11 @@
       "url": "https://u.expo.dev/5bb96212-bda6-43dd-baf7-e737490aeefa"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-font",
+      ["expo-splash-screen", { "backgroundColor": "#0D1117" }]
     ]
   }
 }

@@ -69,7 +69,7 @@ const kartingQuickActionOverrides: Partial<Record<string, { label: string; icon:
 };
 
 export default function HomeScreen({ navigation }: any) {
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
   const [showMoreActions, setShowMoreActions] = useState(false);
   const teamName = useAppStore((state) => state.teamName);
   const brandingPreferences = useAppStore((state) => state.brandingPreferences);
@@ -263,11 +263,6 @@ export default function HomeScreen({ navigation }: any) {
     }
 
     if (raceCarType === "Karting") {
-      if (target === "Setups") {
-        navigation.getParent()?.push("SetupsOverview");
-        return;
-      }
-
       if (target === "Tires") {
         navigation.getParent()?.navigate("KartingSetup", { section: "Tires" });
         return;
@@ -282,11 +277,6 @@ export default function HomeScreen({ navigation }: any) {
         navigation.getParent()?.navigate("KartingSetup", { section: "Kart Chassis" });
         return;
       }
-    }
-
-    if (target === "Setups") {
-      navigation.getParent()?.push("SetupsOverview");
-      return;
     }
 
     navigation.navigate(target);

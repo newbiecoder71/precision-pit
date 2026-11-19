@@ -455,7 +455,7 @@ function LaunchGate() {
       }
     };
 
-    Linking.getInitialURL().then(processUrl);
+    Linking.getInitialURL().then((url) => processUrl(url ?? null));
     const subscription = Linking.addEventListener("url", ({ url }) => {
       processUrl(url);
     });

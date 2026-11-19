@@ -45,8 +45,8 @@ export default function LoginScreen() {
   const [shouldFocusPasswordOnLoad, setShouldFocusPasswordOnLoad] = useState(false);
   const [loginButtonY, setLoginButtonY] = useState(0);
   const logIn = useAppStore((state) => state.logIn);
-  const emailInputRef = useRef<RNTextInput>(null);
-  const passwordInputRef = useRef<RNTextInput>(null);
+  const emailInputRef = useRef<React.ElementRef<typeof RNTextInput>>(null);
+  const passwordInputRef = useRef<React.ElementRef<typeof RNTextInput>>(null);
   const webTextCursor = Platform.OS === "web" ? ({ cursor: "text" } as any) : undefined;
   const webPointerCursor = Platform.OS === "web" ? ({ cursor: "pointer" } as any) : undefined;
 

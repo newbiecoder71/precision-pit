@@ -50,7 +50,7 @@ function InfoRow({ label, value }: InfoRowProps) {
 
 export default function AccountScreen({ navigation, route }: any) {
   const scrollRef = React.useRef<KeyboardAwareScrollView>(null);
-  const transponderInputRef = React.useRef<RNTextInput>(null);
+  const transponderInputRef = React.useRef<React.ElementRef<typeof RNTextInput>>(null);
   const insets = useSafeAreaInsets();
   const userName = useAppStore((state) => state.userName);
   const teamName = useAppStore((state) => state.teamName);

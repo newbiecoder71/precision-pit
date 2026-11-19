@@ -2,7 +2,7 @@ import React, { forwardRef, useImperativeHandle, useRef, useState } from "react"
 import { StyleSheet as RNStyleSheet, StyleSheet, Text, TextInput, View } from "react-native";
 import type { TextInputProps } from "react-native";
 
-const AppTextInput = forwardRef<TextInput, TextInputProps>(function AppTextInput(
+const AppTextInput = forwardRef<React.ElementRef<typeof TextInput>, TextInputProps>(function AppTextInput(
   {
     placeholder,
     onFocus,
@@ -15,7 +15,7 @@ const AppTextInput = forwardRef<TextInput, TextInputProps>(function AppTextInput
   forwardedRef,
 ) {
   const [isFocused, setIsFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<React.ElementRef<typeof TextInput>>(null);
   const stringValue = typeof value === "string" ? value : value == null ? "" : String(value);
   const showPlaceholder = !isFocused && !stringValue.length && !!placeholder;
   const flattenedStyle = RNStyleSheet.flatten(style);
@@ -44,7 +44,7 @@ const AppTextInput = forwardRef<TextInput, TextInputProps>(function AppTextInput
         }
       : undefined;
 
-  useImperativeHandle(forwardedRef, () => inputRef.current as TextInput, []);
+  useImperativeHandle(forwardedRef, () => inputRef.current!, []);
 
   return (
     <View pointerEvents="box-none" style={styles.wrapper}>

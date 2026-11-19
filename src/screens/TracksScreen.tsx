@@ -16,7 +16,7 @@ import { dirtOvalTracks } from "../data/dirtOvalTracks";
 import { colors, spacing } from "../theme";
 
 export default function TracksScreen({ navigation }: any) {
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<React.ElementRef<typeof ScrollView>>(null);
   const [search, setSearch] = useState("");
   const [selectedTrackName, setSelectedTrackName] = useState<string>();
   const trimmedSearch = search.trim();

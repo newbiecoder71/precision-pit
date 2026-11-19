@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Image,
@@ -14,7 +14,8 @@ import TextInput from "../components/AppTextInput";
 import KeyboardScreen from "../components/KeyboardScreen";
 import { isVisiblePreferenceSelected } from "../data/teamPreferences";
 import { colors, spacing } from "../theme";
-import { GearInventoryItem, useAppStore } from "../store/useAppStore";
+import { useAppStore } from "../store/useAppStore";
+import type { GearInventoryItem } from "../store/useAppStore";
 import { calculateGearRatio, formatGearRatio } from "../utils/gears";
 
 function sanitizeNumberInput(value: string) {

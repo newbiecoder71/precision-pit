@@ -449,7 +449,9 @@ export default function TiresScreen() {
                 <View style={styles.staggerRow}>
                   {showFrontStagger ? (
                     <View style={styles.staggerCard}>
-                      <Text style={styles.staggerLabel}>Front Stagger</Text>
+                      <Text style={styles.staggerLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                        Front Stagger
+                      </Text>
                       <Text style={styles.staggerValue}>{frontStagger}</Text>
                       <Text style={styles.staggerHint}>
                         RF minus LF | {displayMode === "fraction" ? "Fractions" : "Decimals"}
@@ -458,7 +460,9 @@ export default function TiresScreen() {
                   ) : null}
                   {showRearStagger ? (
                     <View style={styles.staggerCard}>
-                      <Text style={styles.staggerLabel}>Rear Stagger</Text>
+                      <Text style={styles.staggerLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                        Rear Stagger
+                      </Text>
                       <Text style={styles.staggerValue}>{rearStagger}</Text>
                       <Text style={styles.staggerHint}>
                         RR minus LR | {displayMode === "fraction" ? "Fractions" : "Decimals"}
@@ -926,7 +930,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
     marginBottom: spacing(0.4),
+    textAlign: "center",
     textTransform: "uppercase",
+    width: "100%",
   },
   staggerValue: {
     color: colors.text,

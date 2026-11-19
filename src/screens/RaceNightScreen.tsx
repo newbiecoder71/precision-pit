@@ -362,7 +362,7 @@ const raceNightGearFields: Array<{ key: keyof GearSetup; label: string; placehol
 
 export default function RaceNightScreen({ navigation, route }: any) {
   const keyboardScrollRef = React.useRef<KeyboardAwareScrollView>(null);
-  const totalLapsInputRef = React.useRef<RNTextInput>(null);
+  const totalLapsInputRef = React.useRef<React.ElementRef<typeof RNTextInput>>(null);
   const pinnedTabsVisibleRef = React.useRef(false);
   const isUserScrollingRef = React.useRef(false);
   const lastUserScrollAtRef = React.useRef(0);

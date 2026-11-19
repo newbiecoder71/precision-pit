@@ -30,7 +30,7 @@ function formatOrdinalPosition(value: string) {
 }
 
 export default function PastRacesScreen({ navigation }: any) {
-  const scrollRef = React.useRef<ScrollView>(null);
+  const scrollRef = React.useRef<React.ElementRef<typeof ScrollView>>(null);
   const raceNights = useAppStore((state) => state.raceNights);
   const saveRaceNight = useAppStore((state) => state.saveRaceNight);
   const isTeamOwner = useAppStore((state) => state.isTeamOwner);

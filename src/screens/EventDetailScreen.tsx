@@ -12,7 +12,7 @@ export default function EventDetailScreen({ navigation, route }: any) {
   const startRaceNight = useAppStore((state) => state.startRaceNight);
   const updateRaceEventTitle = useAppStore((state) => state.updateRaceEventTitle);
   const [editedTitle, setEditedTitle] = useState("");
-  const titleInputRef = useRef<RNTextInput>(null);
+  const titleInputRef = useRef<React.ElementRef<typeof RNTextInput>>(null);
 
   const event = raceEvents.find((entry) => entry.id === eventId);
   const eventRaceNights = useMemo(

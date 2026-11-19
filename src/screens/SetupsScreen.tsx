@@ -6,7 +6,7 @@ import { colors, spacing } from "../theme";
 import { useAppStore } from "../store/useAppStore";
 
 export default function SetupsScreen({ navigation, route }: any) {
-  const scrollRef = React.useRef<ScrollView>(null);
+  const scrollRef = React.useRef<React.ElementRef<typeof ScrollView>>(null);
   const {
     userName,
     raceCarType,
@@ -46,8 +46,8 @@ export default function SetupsScreen({ navigation, route }: any) {
     const parentNavigation = navigation.getParent?.();
     const openedFromStack = route?.name === "SetupsOverview";
 
-    if (openedFromStack && parentNavigation?.push) {
-      parentNavigation.push(destination, params);
+    if (openedFromStack) {
+      navigation.push(destination, params);
       return;
     }
 
@@ -87,20 +87,12 @@ export default function SetupsScreen({ navigation, route }: any) {
               section.title === "Gears" ||
               section.title === "Track & Driver Notes"
             ) {
-              if (route?.name === "SetupsOverview") {
-                openSetupDestination("KartingSetup", { section: section.title });
-              } else {
-                navigation.getParent()?.navigate("KartingSetup", { section: section.title });
-              }
+              openSetupDestination("KartingSetup", { section: section.title });
               return;
             }
 
             if (section.title === "Chassis") {
-              if (route?.name === "SetupsOverview") {
-                openSetupDestination("Chassis");
-              } else {
-                navigation.getParent()?.navigate("Chassis");
-              }
+              openSetupDestination("Chassis");
               return;
             }
 
